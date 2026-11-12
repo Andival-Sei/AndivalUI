@@ -14,3 +14,12 @@ init:SetScript("OnEvent", function(_, _, name)
     AndivalUIDB.schema = 1
     init:UnregisterEvent("ADDON_LOADED")
 end)
+
+-- Original shared layout using Blizzard's native action-button rim artwork.
+function ns.CreateIconFrame(parent, icon, size)
+    local rim=parent:CreateTexture(nil,"OVERLAY")
+    rim:SetTexture("Interface\\Buttons\\UI-Quickslot2")
+    rim:SetPoint("CENTER",icon,"CENTER",0,0)
+    rim:SetSize(size*64/36,size*64/36)
+    return rim
+end

@@ -9,7 +9,7 @@ local defaults = { width = 280, height = 16, scale = 1, x = 0, y = -170, latency
 local cast, outcome, preview, installed, driver, ui
 local nativeOwned = false
 local warnedQuartz = false
-M.version = "0.5.0"
+M.version = "0.5.1"
 local function Say(s) print("|cffe1bd78Andival UI:|r " .. s) end
 M.Say = Say
 local function ESIVisible() return ns.Integrations.ESI.IsVisible() end
@@ -82,6 +82,8 @@ local function CreateUI()
     timer:SetPoint("BOTTOMRIGHT", bar, "TOPRIGHT", 0, 4); timer:SetJustifyH("RIGHT"); timer:SetWidth(80); timer:SetWordWrap(false); timer:SetShadowColor(0,0,0,1); timer:SetShadowOffset(1,-1)
     timer:SetTextColor(0.94, 0.87, 0.71)
     local icon = f:CreateTexture(nil, "ARTWORK"); icon:SetPoint("RIGHT", bar, "LEFT", -7, 3); icon:SetTexCoord(.08,.92,.08,.92)
+    local iconFrame = ns.CreateIconFrame(f,icon,22)
+    f.iconFrame=iconFrame
     local spark = bar:CreateTexture(nil, "OVERLAY")
     spark:SetAtlas("ui-castingbar-pip"); spark:SetSize(8, 22)
     local latency = Texture(bar, "OVERLAY", {.8,.22,.16,.27}); latency:SetPoint("TOPRIGHT"); latency:SetPoint("BOTTOMRIGHT")
@@ -119,7 +121,7 @@ function M.Layout()
     ui.bar:SetHeight(d.height); ui.name:SetWidth(d.width - 90)
     ui.icon:SetSize(22, 22)
     ui.finishGlow:SetSize(36, 36)
-    ui.icon:SetShown(d.icon)
+    ui.icon:SetShown(d.icon); ui.iconFrame:SetShown(d.icon)
     if ns.UnitCastbars then ns.UnitCastbars.Layout() end
 end
 local function SetFillAtlas(atlas)

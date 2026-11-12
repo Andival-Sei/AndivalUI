@@ -124,9 +124,9 @@ ok(AndivalUICastbarFrame:GetAlpha()<.4,'interruption fades rapidly without full-
 time=130;current=nil;channel=nil
 unitCasts.target={name='Fireball',start=130000,finish=133000,blocked=false};fire('PLAYER_TARGET_CHANGED');ns.UnitCastbars.Refresh()
 ok(AndivalUITargetCastbar:IsShown(),'target cast displayed')
-ok(AndivalUITargetCastbar.state.textValue=='Можно прервать','known interruptible shown accurately')
-unitCasts.target.blocked=true;ns.UnitCastbars.Refresh();ok(AndivalUITargetCastbar.state.textValue=='Нельзя прервать','known protected spell indicated')
-unitCasts.target.blocked=restricted;ns.UnitCastbars.Refresh();ok(AndivalUITargetCastbar.state.textValue=='Прерывание: ?','secret interruptibility never guessed')
+ok(not AndivalUITargetCastbar.shield:IsShown(),'interruptible cast has no shield')
+unitCasts.target.blocked=true;ns.UnitCastbars.Refresh();ok(AndivalUITargetCastbar.shield:IsShown(),'confirmed protected spell shows shield')
+unitCasts.target.blocked=restricted;ns.UnitCastbars.Refresh();ok(not AndivalUITargetCastbar.shield:IsShown(),'secret interruptibility never produces shield')
 unitCasts.target.start=restricted;ns.UnitCastbars.Refresh();ok(not AndivalUITargetCastbar:IsShown(),'restricted target timing hides custom bar')
 unitCasts.target=nil;unitChannels.targettarget={name='Beam',start=130000,finish=134000,blocked=false};time=131;ns.UnitCastbars.Refresh()
 ok(AndivalUITargetTargetCastbar.bar.value==.75,'target-of-target channel drains')
@@ -141,4 +141,8 @@ unitCasts.target.start=131000
 LibStub=function() return {GetAddon=function() return {GetModule=function(_,name) return {IsEnabled=function() return name=='Target' end} end} end} end
 ns.UnitCastbars.Refresh();ok(not AndivalUITargetCastbar:IsShown(),'Quartz Target owner is respected')
 LibStub=nil;ns.UnitCastbars.Refresh();ok(AndivalUITargetCastbar:IsShown(),'target resumes when competing owner disabled')
+AndivalUIDB.castbar.icon=true;ns.Castbar.Layout()
+ok(AndivalUICastbarFrame.iconFrame:IsShown() and AndivalUITargetCastbar.iconFrame:IsShown() and AndivalUITargetTargetCastbar.iconFrame:IsShown(),'native icon frames follow enabled icons across all bars')
+AndivalUIDB.castbar.icon=false;ns.Castbar.Layout()
+ok(not AndivalUICastbarFrame.iconFrame:IsShown() and not AndivalUITargetCastbar.iconFrame:IsShown() and not AndivalUITargetTargetCastbar.iconFrame:IsShown(),'icon toggle hides all corresponding frames')
 print(string.format('%d tests passed',count))

@@ -54,9 +54,9 @@ local function Create(unit)
     local text=f:CreateFontString(nil,"OVERLAY","GameFontHighlightSmall");text:SetPoint("BOTTOMLEFT",b,"TOPLEFT",0,4);text:SetJustifyH("LEFT");text:SetWordWrap(false)
     local timer=f:CreateFontString(nil,"OVERLAY","GameFontHighlightSmall");timer:SetPoint("BOTTOMRIGHT",b,"TOPRIGHT",0,4)
     local shield=f:CreateTexture(nil,"OVERLAY")
-    shield:SetTexture("Interface\\CastingBar\\UI-CastingBar-Small-Shield")
-    shield:SetTexCoord(0,36/256,0,1);shield:SetSize(14,25)
-    shield:SetPoint("LEFT",b,"RIGHT",4,0);shield:Hide()
+    shield:SetAtlas("ui-castingbar-shield",false)
+    shield:SetSize(20,23)
+    shield:SetPoint("RIGHT",b,"LEFT",-7,0);shield:Hide()
     local icon=f:CreateTexture(nil,"ARTWORK");icon:SetPoint("RIGHT",b,"LEFT",-7,0);icon:SetSize(20,20);icon:SetTexCoord(.08,.92,.08,.92)
     f.iconFrame=ns.CreateIconFrame(f,icon,20)
     for _,font in ipairs({text,timer}) do font:SetShadowColor(0,0,0,1);font:SetShadowOffset(1,-1) end
@@ -75,6 +75,7 @@ function M.Layout()
         local f=M.bars[unit];local pos=AndivalUIDB.unitcastbars[unit]
         f:SetScale(d.scale);f:SetSize(d.width*.85,14);f:ClearAllPoints();f:SetPoint("CENTER",UIParent,"CENTER",pos.x/d.scale,pos.y/d.scale)
         f.text:SetWidth(d.width*.85-40);f.icon:SetShown(d.icon);f.iconFrame:SetShown(d.icon)
+        f.shield:ClearAllPoints();f.shield:SetPoint("RIGHT",d.icon and f.icon or f.bar,"LEFT",d.icon and -10 or -7,0)
     end
 end
 function M.Refresh(force)

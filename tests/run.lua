@@ -33,6 +33,7 @@ function Frame:CreateMaskTexture() return new(self) end
 function Frame:AddMaskTexture(mask) self.mask=mask end
 function Frame:CreateTexture() return new(self) end
 function Frame:CreateFontString() return new(self) end
+function Frame:SetPoint(...) self.point={...} end
 function Frame:SetScale(v) self.scale=v end
 function Frame:GetScale() return self.scale or 1 end
 function Frame:GetCenter() return 960,540 end
@@ -143,6 +144,9 @@ ns.UnitCastbars.Refresh();ok(not AndivalUITargetCastbar:IsShown(),'Quartz Target
 LibStub=nil;ns.UnitCastbars.Refresh();ok(AndivalUITargetCastbar:IsShown(),'target resumes when competing owner disabled')
 AndivalUIDB.castbar.icon=true;ns.Castbar.Layout()
 ok(AndivalUICastbarFrame.iconFrame:IsShown() and AndivalUITargetCastbar.iconFrame:IsShown() and AndivalUITargetTargetCastbar.iconFrame:IsShown(),'native icon frames follow enabled icons across all bars')
+ok(AndivalUITargetCastbar.shield.point[1]=='RIGHT' and AndivalUITargetCastbar.shield.point[2]==AndivalUITargetCastbar.icon and AndivalUITargetCastbar.shield.point[4]==-10,'shield anchors left of framed icon with gap')
 AndivalUIDB.castbar.icon=false;ns.Castbar.Layout()
 ok(not AndivalUICastbarFrame.iconFrame:IsShown() and not AndivalUITargetCastbar.iconFrame:IsShown() and not AndivalUITargetTargetCastbar.iconFrame:IsShown(),'icon toggle hides all corresponding frames')
+ok(AndivalUITargetCastbar.shield.point[2]==AndivalUITargetCastbar.bar and AndivalUITargetCastbar.shield.point[4]==-7,'shield anchors left of bar when icon hidden')
+ok(AndivalUITargetCastbar.shield:GetAtlas()=='ui-castingbar-shield','uses modern native filled shield atlas')
 print(string.format('%d tests passed',count))

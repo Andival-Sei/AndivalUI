@@ -39,7 +39,7 @@ Future modules register independently through `ns.RegisterModule` and use their 
 
 - Runtime files load in a mocked Lua environment; tests cover casts, channels, stale end events, interruption, visible/hidden/transparent ESI, preview exclusion, fallback and restricted timing.
 - Restricted cast data is not calculated or guessed: the addon yields to Blizzard's native bar.
-- No live-client visual or combat testing has yet been completed. This is **0.5.1, a revised test build**, not a claim of raid-ready compatibility.
+- No live-client visual or combat testing has yet been completed. This is **0.5.2, a revised test build**, not a claim of raid-ready compatibility.
 - Actual Blizzard atlas rendering, secure-value behavior, ESI fade timing, and coexistence with other castbar owners need in-game testing.
 - The module does not implement Quartz's mirror timers, GCD, swing timer or focus/pet features.
 
@@ -84,8 +84,10 @@ While Quartz's Target module is enabled, our target bar waits, just as the playe
 
 Target and target-of-target rendering can be previewed with deterministic sample data in the simulator. This verifies rendering and Lua compatibility, not real combat data availability or private-server event behavior. Live-client testing remains necessary.
 
-## 0.5.1 icon frames
+## 0.5.2 icon frames
 
 Optional spell icons now use a consistent native Blizzard quick-slot rim on player, target and target-of-target bars. The rim tracks the icon toggle and frame fades. No other addon settings are changed.
 
-0.5.1 also replaces the interim text status labels with Blizzard's native castbar shield, shown **only** for a confirmed non-interruptible spell. Unknown and explicitly interruptible spells show no shield; absence of the shield does not assert interruptibility when the API state is unavailable.
+0.5.2 also replaces the interim text status labels with Blizzard's native castbar shield, shown **only** for a confirmed non-interruptible spell. Unknown and explicitly interruptible spells show no shield; absence of the shield does not assert interruptibility when the API state is unavailable.
+
+The protection shield is anchored on the left: before the framed spell icon when icons are enabled, otherwise before the bar. Its spacing avoids covering the spell artwork or progress.

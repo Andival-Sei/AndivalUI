@@ -39,7 +39,7 @@ Future modules register independently through `ns.RegisterModule` and use their 
 
 - Runtime files load in a mocked Lua environment; tests cover casts, channels, stale end events, interruption, visible/hidden/transparent ESI, preview exclusion, fallback and restricted timing.
 - Restricted cast data is not calculated or guessed: the addon yields to Blizzard's native bar.
-- No live-client visual or combat testing has yet been completed. This is **0.2.0, a revised test build**, not a claim of raid-ready compatibility.
+- No live-client visual or combat testing has yet been completed. This is **0.3.0, a revised test build**, not a claim of raid-ready compatibility.
 - Actual Blizzard atlas rendering, secure-value behavior, ESI fade timing, and coexistence with other castbar owners need in-game testing.
 - The module does not implement Quartz's mirror timers, GCD, swing timer or target/focus/pet features.
 
@@ -63,3 +63,9 @@ Original addon source: MIT. Blizzard assets are referenced from the installed cl
 ## 0.2.0 revision
 
 Replaces the plain bronze rectangle with native Blizzard castbar backdrop artwork, tighter typography, a smaller optional icon (off by default), and a restrained native completion glow. Explicit atlas assignment and additional event-order/ESI-ownership tests. Existing saved positioning and preferences are preserved; Reset module applies the new dimensions and icon default. No in-game screenshot or visual validation is claimed.
+
+## 0.3.0 polish
+
+Rounded antialiased outer silhouette, shared clipping for native fill and the latency zone, compact shadowed native text, and a restrained cast-specific completion glow. The castbar remains visually distinct from Enhanced Soft Interact. `Media/RoundedMask.tga` is original geometric artwork included under MIT. Defaults are 280 by 16; existing settings remain unchanged until Reset module.
+
+Mock tests validate mask attachment and cast lifecycle, not pixel output. A simulator preview uses actual addon code and client assets; it is not live-client combat validation.

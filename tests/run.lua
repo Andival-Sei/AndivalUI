@@ -29,6 +29,8 @@ function Frame:GetAtlas() return self.atlas end
 function Frame:SetValue(v) self.value=v; if self.scripts.OnValueChanged then self.scripts.OnValueChanged(self,v) end end
 function Frame:SetText(v) self.textValue=v end
 function Frame:SetFormattedText(f,v) self.textValue=string.format(f,v) end
+function Frame:CreateMaskTexture() return new(self) end
+function Frame:AddMaskTexture(mask) self.mask=mask end
 function Frame:CreateTexture() return new(self) end
 function Frame:CreateFontString() return new(self) end
 function Frame:SetScale(v) self.scale=v end
@@ -64,10 +66,12 @@ fire('ADDON_LOADED','AndivalUI')
 local count=0
 local function ok(value,label) assert(value,label); count=count+1; print('PASS '..label) end
 ok(ns.modules.Castbar ~= nil,'registered castbar module')
-ok(AndivalUIDB.schema==1 and AndivalUIDB.castbar.width==260,'isolated default settings')
+ok(AndivalUIDB.schema==1 and AndivalUIDB.castbar.width==280,'isolated default settings')
 current={name='Holy Light',start=100000,finish=103000,guid='a'}; PlayerCastingBarFrame.casting=true
 fire('UNIT_SPELLCAST_START','player','a'); tick(101)
 ok(AndivalUICastbarFrame:IsShown(),'spell is displayed')
+ok(AndivalUICastbarFrame.bar:GetStatusBarTexture().mask==AndivalUICastbarFrame.fillMask,'rounded fill mask attached')
+ok(AndivalUICastbarFrame.latency.mask==AndivalUICastbarFrame.fillMask,'latency follows same rounded silhouette')
 ok(AndivalUICastbarFrame.bar:GetStatusBarTexture():GetAtlas()=='ui-castingbar-filling-standard','native atlas explicitly assigned')
 ok(PlayerCastingBarFrame:GetAlpha()==0,'native duplicate hidden')
 local p=AndivalUICastbarFrame.bar.value; ok(p>.32 and p<.34,'accurate cast progress')

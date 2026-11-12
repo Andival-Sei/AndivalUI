@@ -5,11 +5,11 @@ ns.Castbar = M
 local ru = GetLocale() == "ruRU"
 ns.ru = ru
 local function Safe(v) if issecretvalue and issecretvalue(v) then return nil end return v end
-local defaults = { width = 260, height = 14, scale = 1, x = 0, y = -170, latency = true, icon = false, reducedMotion = false, enabled = true }
+local defaults = { width = 280, height = 16, scale = 1, x = 0, y = -170, latency = true, icon = false, reducedMotion = false, enabled = true }
 local cast, outcome, preview, installed, driver, ui
 local nativeOwned = false
 local warnedQuartz = false
-M.version = "0.2.0"
+M.version = "0.3.0"
 local function Say(s) print("|cffe1bd78Andival UI:|r " .. s) end
 M.Say = Say
 local function ESIVisible() return ns.Integrations.ESI.IsVisible() end
@@ -52,6 +52,13 @@ local function Texture(parent, layer, color)
     t:SetColorTexture(unpack(color))
     return t
 end
+local function RoundedMask(parent, target, anchor)
+    local mask = parent:CreateMaskTexture(nil, "ARTWORK")
+    mask:SetTexture("Interface\\AddOns\\" .. ADDON .. "\\Media\\RoundedMask.tga", "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
+    mask:SetAllPoints(anchor or target)
+    target:AddMaskTexture(mask)
+    return mask
+end
 local function CreateUI()
     local f = CreateFrame("Frame", "AndivalUICastbarFrame", UIParent)
     f:SetFrameStrata("MEDIUM"); f:SetClampedToScreen(true); f:SetMovable(true)
@@ -64,21 +71,25 @@ local function CreateUI()
     backing:SetAtlas("ui-castingbar-background", false)
     backing:SetPoint("TOPLEFT", bar, "TOPLEFT", -3, 3)
     backing:SetPoint("BOTTOMRIGHT", bar, "BOTTOMRIGHT", 3, -3)
+    local outerMask = RoundedMask(bar, backing)
+    local fillMask = RoundedMask(bar, bar:GetStatusBarTexture(), bar)
     local finishGlow = bar:CreateTexture(nil, "OVERLAY")
-    finishGlow:SetAtlas("AftLevelup-GlowLine", false)
-    finishGlow:SetPoint("CENTER"); finishGlow:SetBlendMode("ADD"); finishGlow:Hide()
+    finishGlow:SetAtlas("cast_standard_pipglow", false)
+    finishGlow:SetPoint("RIGHT", bar, "RIGHT", 4, 0); finishGlow:SetBlendMode("ADD"); finishGlow:Hide()
     local name = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    name:SetPoint("BOTTOMLEFT", bar, "TOPLEFT", 0, 4); name:SetJustifyH("LEFT"); name:SetWordWrap(false)
+    name:SetPoint("BOTTOMLEFT", bar, "TOPLEFT", 0, 4); name:SetJustifyH("LEFT"); name:SetWordWrap(false); name:SetShadowColor(0,0,0,1); name:SetShadowOffset(1,-1)
     local timer = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    timer:SetPoint("BOTTOMRIGHT", bar, "TOPRIGHT", 0, 4); timer:SetJustifyH("RIGHT"); timer:SetWidth(80); timer:SetWordWrap(false)
+    timer:SetPoint("BOTTOMRIGHT", bar, "TOPRIGHT", 0, 4); timer:SetJustifyH("RIGHT"); timer:SetWidth(80); timer:SetWordWrap(false); timer:SetShadowColor(0,0,0,1); timer:SetShadowOffset(1,-1)
     timer:SetTextColor(0.94, 0.87, 0.71)
     local icon = f:CreateTexture(nil, "ARTWORK"); icon:SetPoint("RIGHT", bar, "LEFT", -7, 3); icon:SetTexCoord(.08,.92,.08,.92)
     local spark = bar:CreateTexture(nil, "OVERLAY")
     spark:SetAtlas("ui-castingbar-pip"); spark:SetSize(8, 22)
     local latency = Texture(bar, "OVERLAY", {.8,.22,.16,.27}); latency:SetPoint("TOPRIGHT"); latency:SetPoint("BOTTOMRIGHT")
+    latency:AddMaskTexture(fillMask)
     local previewLabel = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
     previewLabel:SetPoint("TOP", bar, "BOTTOM", 0, -7)
     previewLabel:SetText(ru and "ПРЕДПРОСМОТР · перетащи полосу" or "PREVIEW · drag to position")
+    f.fillMask, f.outerMask = fillMask, outerMask
     f.bar, f.name, f.timer, f.icon, f.finishGlow, f.spark, f.latency, f.previewLabel = bar, name, timer, icon, finishGlow, spark, latency, previewLabel
     f:SetScript("OnMouseDown", function(self, button) if preview and button == "LeftButton" and not InCombatLockdown() then self:StartMoving() end end)
     f:SetScript("OnMouseUp", function(self)
@@ -99,7 +110,7 @@ function M.Layout()
     ui:ClearAllPoints(); ui:SetPoint("CENTER", UIParent, "CENTER", d.x/d.scale, d.y/d.scale)
     ui.bar:SetHeight(d.height); ui.name:SetWidth(d.width - 90)
     ui.icon:SetSize(22, 22)
-    ui.finishGlow:SetSize(d.width + 20, 18)
+    ui.finishGlow:SetSize(36, 36)
     ui.icon:SetShown(d.icon)
 end
 local function SetFillAtlas(atlas)

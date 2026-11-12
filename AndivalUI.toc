@@ -3,7 +3,7 @@
 ## Notes: Modular, native-style UI refinements. First module: Castbar with Enhanced Soft Interact support.
 ## Notes-ruRU: Модульные улучшения интерфейса. Первый модуль: полоса заклинаний с поддержкой Enhanced Soft Interact.
 ## Author: Andival
-## Version: 0.2.0
+## Version: 0.3.0
 ## SavedVariables: AndivalUIDB
 ## OptionalDeps: EnhancedSoftInteract, Quartz
 ## IconTexture: Interface\Icons\Spell_Holy_HolyBolt

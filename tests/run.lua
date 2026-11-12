@@ -48,20 +48,22 @@ function CreateFrame(kind,name,parent,template)
 end
 UIParent=new(); UISpecialFrames={}; SlashCmdList={}; unpack=table.unpack
 PlayerCastingBarFrame=new(UIParent)
+local unitCasts,unitChannels={},{}
+function UnitExists(unit) return unit=="player" or unitCasts[unit]~=nil or unitChannels[unit]~=nil end
 local time=100; local current; local channel; local restricted={}
 function GetTime() return time end
 function GetLocale() return 'ruRU' end
 function GetNetStats() return 0,0,50,100 end
 function InCombatLockdown() return false end
 function issecretvalue(v) return v==restricted end
-function UnitCastingInfo() if current then return current.name,'',135920,current.start,current.finish,false,current.guid,false,1 end end
-function UnitChannelInfo() if channel then return channel.name,'',135920,channel.start,channel.finish,false,false,1 end end
+function UnitCastingInfo(unit) local c=unit=='player' and current or unitCasts[unit];if c then return c.name,'',135920,c.start,c.finish,false,c.guid,c.blocked,1 end end
+function UnitChannelInfo(unit) local c=unit=='player' and channel or unitChannels[unit];if c then return c.name,'',135920,c.start,c.finish,false,c.blocked,1 end end
 local function fire(e,...)
   for _,f in ipairs(frames) do if f.events[e] and f.scripts.OnEvent then f.scripts.OnEvent(f,e,...) end end
 end
 local function tick(t) time=t; for _,f in ipairs(frames) do if f.scripts.OnUpdate then f.scripts.OnUpdate(f,.02) end end end
 local function load(path) assert(loadfile(path))('AndivalUI',ns) end
-load('Core.lua'); load('Modules/CastbarLogic.lua'); load('Integrations/EnhancedSoftInteract.lua'); load('Modules/Castbar.lua');load('Settings.lua')
+load('Core.lua'); load('Modules/CastbarLogic.lua'); load('Integrations/EnhancedSoftInteract.lua'); load('Modules/Castbar.lua');load('Modules/UnitCastbars.lua');load('Settings.lua')
 fire('ADDON_LOADED','AndivalUI')
 local count=0
 local function ok(value,label) assert(value,label); count=count+1; print('PASS '..label) end
@@ -119,4 +121,24 @@ ok(AndivalUICastbarFrame.finishGlow:IsShown() and AndivalUICastbarFrame.finishGl
 current={name='Interrupted',start=122000,finish=125000,guid='extinguish'};time=122;fire('UNIT_SPELLCAST_START','player','extinguish');tick(123);current=nil;fire('UNIT_SPELLCAST_INTERRUPTED','player','extinguish');tick(123.25)
 ok(not AndivalUICastbarFrame.finishGlow:IsShown() and not AndivalUICastbarFrame.flow:IsShown(),'interruption extinguishes all light')
 ok(AndivalUICastbarFrame:GetAlpha()<.4,'interruption fades rapidly without full-bar success')
+time=130;current=nil;channel=nil
+unitCasts.target={name='Fireball',start=130000,finish=133000,blocked=false};fire('PLAYER_TARGET_CHANGED');ns.UnitCastbars.Refresh()
+ok(AndivalUITargetCastbar:IsShown(),'target cast displayed')
+ok(AndivalUITargetCastbar.state.textValue=='Можно прервать','known interruptible shown accurately')
+unitCasts.target.blocked=true;ns.UnitCastbars.Refresh();ok(AndivalUITargetCastbar.state.textValue=='Нельзя прервать','known protected spell indicated')
+unitCasts.target.blocked=restricted;ns.UnitCastbars.Refresh();ok(AndivalUITargetCastbar.state.textValue=='Прерывание: ?','secret interruptibility never guessed')
+unitCasts.target.start=restricted;ns.UnitCastbars.Refresh();ok(not AndivalUITargetCastbar:IsShown(),'restricted target timing hides custom bar')
+unitCasts.target=nil;unitChannels.targettarget={name='Beam',start=130000,finish=134000,blocked=false};time=131;ns.UnitCastbars.Refresh()
+ok(AndivalUITargetTargetCastbar.bar.value==.75,'target-of-target channel drains')
+ok(AndivalUITargetTargetCastbar.bar:GetStatusBarTexture():GetAtlas()=='ui-castingbar-filling-channel','channel uses distinct native texture')
+unitChannels.targettarget=nil;fire('UNIT_TARGET','target');ok(not AndivalUITargetTargetCastbar:IsShown(),'target-of-target change clears stale bar')
+AndivalUIDB.castbar.target=false;unitCasts.target={name='Disabled',start=131000,finish=134000};ns.UnitCastbars.Refresh();ok(not AndivalUITargetCastbar:IsShown(),'target toggle respected')
+AndivalUIDB.castbar.target=true;ns.UnitCastbars.Preview(true);ok(AndivalUITargetCastbar:IsShown() and AndivalUITargetTargetCastbar:IsShown(),'unit previews display both bars');ns.UnitCastbars.Preview(false)
+TargetFrameSpellBar=new(UIParent);TargetFrameSpellBar:SetAlpha(.8)
+ns.UnitCastbars.Refresh();ok(TargetFrameSpellBar:GetAlpha()==0,'owns native target alpha only while custom target shown')
+unitCasts.target.start=restricted;ns.UnitCastbars.Refresh();ok(TargetFrameSpellBar:GetAlpha()==.8,'restricted target fallback restores previous native alpha')
+unitCasts.target.start=131000
+LibStub=function() return {GetAddon=function() return {GetModule=function(_,name) return {IsEnabled=function() return name=='Target' end} end} end} end
+ns.UnitCastbars.Refresh();ok(not AndivalUITargetCastbar:IsShown(),'Quartz Target owner is respected')
+LibStub=nil;ns.UnitCastbars.Refresh();ok(AndivalUITargetCastbar:IsShown(),'target resumes when competing owner disabled')
 print(string.format('%d tests passed',count))

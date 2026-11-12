@@ -5,11 +5,11 @@ ns.Castbar = M
 local ru = GetLocale() == "ruRU"
 ns.ru = ru
 local function Safe(v) if issecretvalue and issecretvalue(v) then return nil end return v end
-local defaults = { width = 280, height = 16, scale = 1, x = 0, y = -170, latency = true, icon = false, reducedMotion = false, enabled = true }
+local defaults = { width = 280, height = 16, scale = 1, x = 0, y = -170, latency = true, icon = false, reducedMotion = false, enabled = true, target = true, targettarget = true }
 local cast, outcome, preview, installed, driver, ui
 local nativeOwned = false
 local warnedQuartz = false
-M.version = "0.4.0"
+M.version = "0.5.0"
 local function Say(s) print("|cffe1bd78Andival UI:|r " .. s) end
 M.Say = Say
 local function ESIVisible() return ns.Integrations.ESI.IsVisible() end
@@ -120,6 +120,7 @@ function M.Layout()
     ui.icon:SetSize(22, 22)
     ui.finishGlow:SetSize(36, 36)
     ui.icon:SetShown(d.icon)
+    if ns.UnitCastbars then ns.UnitCastbars.Layout() end
 end
 local function SetFillAtlas(atlas)
     local texture = ui.bar:GetStatusBarTexture()
@@ -221,6 +222,7 @@ local function EndCast(event, guid)
     Refresh()
 end
 function M.Preview(on)
+    if ns.UnitCastbars then ns.UnitCastbars.Preview(on) end
     Native(false)
     preview = on and GetTime() or nil
     if ui then ui:EnableMouse(on); ui.previewLabel:SetShown(on) end

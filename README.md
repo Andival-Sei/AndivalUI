@@ -4,7 +4,7 @@ A small modular interface addon for **WoW Forever (Interface 16001)**.
 
 ## First module: Castbar
 
-A restrained Blizzard-style **player** castbar: native Blizzard backdrop and gold/channel textures, compact text, optional small spell icon, readable name and remaining time, latency zone, short success/interruption feedback, and reduced-motion option. Target/focus/pet bars are not replaced in this first release.
+A restrained Blizzard-style **player** castbar: native Blizzard backdrop and gold/channel textures, compact text, optional small spell icon, readable name and remaining time, latency zone, short success/interruption feedback, and reduced-motion option. Optional target and target-of-target bars share the rounded native styling. Focus/pet bars are not replaced.
 
 The Enhanced Soft Interact adapter checks the actual visibility of its live interaction bar. When ESI shows gathering or opening progress, Andival UI yields. If ESI is absent, disabled, hidden, or cannot associate the interaction, the regular castbar is the fallback. Preview HUDs do not suppress spells, and an old ESI completion animation does not hide a new spell.
 
@@ -21,7 +21,7 @@ The ESI integration is read-only and currently targets ESI 0.5.8. Leave ESI's ow
 
 ## На русском
 
-`/aui` открывает настройки и предпросмотр. Перетащите полосу, выберите ширину и масштаб, включите/выключите иконку, зону задержки и анимацию. Первый модуль заменяет только полосу **игрока**. Полосы цели и питомца пока не меняются.
+`/aui` открывает настройки и предпросмотр. Перетащите полосу, выберите ширину и масштаб, включите/выключите иконку, зону задержки и анимацию. Есть полосы игрока, цели и цели цели. Полосы цели включаются отдельно; в предпросмотре их можно перетаскивать. Полоса питомца не меняется.
 
 Сначала отключите модуль Player в Quartz и выполните `/reload`. Другие аддоны и их настройки автоматически не меняются. Полоса Enhanced Soft Interact при сборе ресурсов и открытии предметов получает приоритет, только когда она реально видна.
 
@@ -39,9 +39,9 @@ Future modules register independently through `ns.RegisterModule` and use their 
 
 - Runtime files load in a mocked Lua environment; tests cover casts, channels, stale end events, interruption, visible/hidden/transparent ESI, preview exclusion, fallback and restricted timing.
 - Restricted cast data is not calculated or guessed: the addon yields to Blizzard's native bar.
-- No live-client visual or combat testing has yet been completed. This is **0.4.0, a revised test build**, not a claim of raid-ready compatibility.
+- No live-client visual or combat testing has yet been completed. This is **0.5.0, a revised test build**, not a claim of raid-ready compatibility.
 - Actual Blizzard atlas rendering, secure-value behavior, ESI fade timing, and coexistence with other castbar owners need in-game testing.
-- The module does not implement Quartz's mirror timers, GCD, swing timer or target/focus/pet features.
+- The module does not implement Quartz's mirror timers, GCD, swing timer or focus/pet features.
 
 ### Tests
 
@@ -73,3 +73,13 @@ Mock tests validate mask attachment and cast lifecycle, not pixel output. A simu
 ## 0.4.0 motion
 
 A low-opacity light moves within the existing fill, clipped to both its progress and rounded silhouette. Success gets a brief warm bloom and gentle fade; interruption darkens the partial bar and extinguishes its light. Reduced motion disables travelling light, glow and animated fading. Preview now demonstrates success and interruption in a seven-second cycle using the same rendering functions as real casts. ESI-owned interactions never receive these effects.
+
+## 0.5.0 unit bars and audit
+
+Icon toggle, optional player latency zone, gold casts and native channel texture with reverse progress already existed. This release adds independent target/target-of-target toggles, draggable preview positions, and explicit interruptibility labels: interruptible, not interruptible, or unknown. Unknown/secret state is never inferred. These labels describe the spell, not whether your interrupt ability is ready or in range.
+
+`Modules/UnitCastbars.lua` is separately registered and polls the actual target unit APIs every 50 ms (plus immediate target-change refresh), because target-of-target spellcast events are not reliably established. If the client provides no readable cast/timing, that custom bar stays hidden. The normal target castbar is restored; there is no guaranteed native target-of-target fallback. No countdown is invented for secret timings. The first implementation does not use secret duration objects.
+
+While Quartz's Target module is enabled, our target bar waits, just as the player bar waits for Quartz Player. Disable those modules manually to use the replacements. Other addon's settings/events are never changed. If Enhance QoL's target castbar is enabled, disable one owner manually to avoid duplicates. No native target-of-target unit frame is hidden.
+
+Target and target-of-target rendering can be previewed with deterministic sample data in the simulator. This verifies rendering and Lua compatibility, not real combat data availability or private-server event behavior. Live-client testing remains necessary.

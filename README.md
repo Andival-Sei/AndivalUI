@@ -39,7 +39,7 @@ Future modules register independently through `ns.RegisterModule` and use their 
 
 - Runtime files load in a mocked Lua environment; tests cover casts, channels, stale end events, interruption, visible/hidden/transparent ESI, preview exclusion, fallback and restricted timing.
 - Restricted cast data is not calculated or guessed: the addon yields to Blizzard's native bar.
-- No live-client visual or combat testing has yet been completed. This is **0.3.0, a revised test build**, not a claim of raid-ready compatibility.
+- No live-client visual or combat testing has yet been completed. This is **0.4.0, a revised test build**, not a claim of raid-ready compatibility.
 - Actual Blizzard atlas rendering, secure-value behavior, ESI fade timing, and coexistence with other castbar owners need in-game testing.
 - The module does not implement Quartz's mirror timers, GCD, swing timer or target/focus/pet features.
 
@@ -69,3 +69,7 @@ Replaces the plain bronze rectangle with native Blizzard castbar backdrop artwor
 Rounded antialiased outer silhouette, shared clipping for native fill and the latency zone, compact shadowed native text, and a restrained cast-specific completion glow. The castbar remains visually distinct from Enhanced Soft Interact. `Media/RoundedMask.tga` is original geometric artwork included under MIT. Defaults are 280 by 16; existing settings remain unchanged until Reset module.
 
 Mock tests validate mask attachment and cast lifecycle, not pixel output. A simulator preview uses actual addon code and client assets; it is not live-client combat validation.
+
+## 0.4.0 motion
+
+A low-opacity light moves within the existing fill, clipped to both its progress and rounded silhouette. Success gets a brief warm bloom and gentle fade; interruption darkens the partial bar and extinguishes its light. Reduced motion disables travelling light, glow and animated fading. Preview now demonstrates success and interruption in a seven-second cycle using the same rendering functions as real casts. ESI-owned interactions never receive these effects.

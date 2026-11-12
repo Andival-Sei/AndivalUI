@@ -9,7 +9,7 @@ local defaults = { width = 280, height = 16, scale = 1, x = 0, y = -170, latency
 local cast, outcome, preview, installed, driver, ui
 local nativeOwned = false
 local warnedQuartz = false
-M.version = "0.3.0"
+M.version = "0.4.0"
 local function Say(s) print("|cffe1bd78Andival UI:|r " .. s) end
 M.Say = Say
 local function ESIVisible() return ns.Integrations.ESI.IsVisible() end
@@ -86,9 +86,17 @@ local function CreateUI()
     spark:SetAtlas("ui-castingbar-pip"); spark:SetSize(8, 22)
     local latency = Texture(bar, "OVERLAY", {.8,.22,.16,.27}); latency:SetPoint("TOPRIGHT"); latency:SetPoint("BOTTOMRIGHT")
     latency:AddMaskTexture(fillMask)
+    -- Soft moving illumination is clipped to both the rounded outline and current fill.
+    local flow = bar:CreateTexture(nil, "OVERLAY")
+    flow:SetAtlas("cast_standard_pipglow", false); flow:SetBlendMode("ADD")
+    local progressMask = bar:CreateMaskTexture(nil, "ARTWORK")
+    progressMask:SetTexture("Interface\\Buttons\\WHITE8X8")
+    progressMask:SetAllPoints(bar:GetStatusBarTexture())
+    flow:AddMaskTexture(fillMask); flow:AddMaskTexture(progressMask)
     local previewLabel = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
     previewLabel:SetPoint("TOP", bar, "BOTTOM", 0, -7)
     previewLabel:SetText(ru and "ПРЕДПРОСМОТР · перетащи полосу" or "PREVIEW · drag to position")
+    f.flow, f.progressMask = flow, progressMask
     f.fillMask, f.outerMask = fillMask, outerMask
     f.bar, f.name, f.timer, f.icon, f.finishGlow, f.spark, f.latency, f.previewLabel = bar, name, timer, icon, finishGlow, spark, latency, previewLabel
     f:SetScript("OnMouseDown", function(self, button) if preview and button == "LeftButton" and not InCombatLockdown() then self:StartMoving() end end)
@@ -123,11 +131,39 @@ local function Paint(c, now)
     SetFillAtlas(c.channel and "ui-castingbar-filling-channel" or "ui-castingbar-filling-standard")
     ui.bar:SetStatusBarColor(1,1,1); ui.bar:SetValue(progress)
     ui.name:SetText(c.name); ui.icon:SetTexture(c.icon); ui.timer:SetFormattedText("%.1f", remaining)
+    local moving = not AndivalUIDB.castbar.reducedMotion
+    ui.flow:SetShown(moving)
+    if moving then
+        local phase = ((now-c.startTime)*.45) % 1
+        ui.flow:SetSize(58,AndivalUIDB.castbar.height*2.5)
+        ui.flow:ClearAllPoints(); ui.flow:SetPoint("CENTER",ui.bar,"LEFT",AndivalUIDB.castbar.width*progress*phase,0)
+        ui.flow:SetAlpha(.12 + .035*math.sin((now-c.startTime)*3))
+    end
     ui.spark:ClearAllPoints(); ui.spark:SetPoint("CENTER", ui.bar, "LEFT", AndivalUIDB.castbar.width * progress, 0)
     ui.spark:SetShown(not AndivalUIDB.castbar.reducedMotion)
     local ratio = L.Clamp((c.latency or 0)/(c.endTime-c.startTime),0,.3)
     ui.latency:SetWidth(math.max(1,AndivalUIDB.castbar.width*ratio))
     ui.latency:SetShown(AndivalUIDB.castbar.latency and not c.channel and ratio > 0)
+end
+local function PaintOutcome(success, remaining)
+    local reduced = AndivalUIDB.castbar.reducedMotion
+    SetFillAtlas(success and "ui-castingbar-full-standard" or "ui-castingbar-interrupted")
+    ui.spark:Hide(); ui.latency:Hide(); ui.flow:Hide()
+    ui.timer:SetText(success and "" or (ru and "Прервано" or "Interrupted"))
+    if success then ui.bar:SetValue(1) end
+    local t = L.Clamp(remaining,0,1)
+    ui.finishGlow:SetShown(success and not reduced)
+    if success then
+        ui.bar:SetStatusBarColor(1,1,1)
+        ui.finishGlow:ClearAllPoints(); ui.finishGlow:SetPoint("CENTER",ui.bar,"CENTER",0,0)
+        ui.finishGlow:SetSize(AndivalUIDB.castbar.width*.75,AndivalUIDB.castbar.height*2)
+        ui.finishGlow:SetAlpha(.23*math.sin(math.pi*(1-t)))
+    else
+        -- The interrupted energy darkens in place rather than snapping to a full red bar.
+        local light = reduced and 1 or (.25+.75*t)
+        ui.bar:SetStatusBarColor(light,light,light)
+    end
+    ui:SetAlpha(reduced and 1 or (success and math.min(1,t*1.65) or t*t))
 end
 local function Refresh(deferClaim)
     if not installed then return end
@@ -137,9 +173,20 @@ local function Refresh(deferClaim)
     local now = GetTime()
     if preview then
         local elapsed = (now-preview) % 7
-        local demo = {name = elapsed < 3.5 and (ru and "Свет небес" or "Holy Light") or (ru and "Направляемое заклинание" or "Channeled spell"),
-            icon = 135920, startTime = now - elapsed % 3.5, endTime = now - elapsed % 3.5 + 3.5, channel = elapsed >= 3.5, latency = .12}
-        Paint(demo,now); ui:SetAlpha(1); ui:Show(); return
+        local second = elapsed >= 4
+        local age = second and elapsed-4 or elapsed
+        local demo = {name = ru and "Свет небес" or "Holy Light", icon=135920,
+            startTime=now-age,endTime=now-age+3,channel=false,latency=.12}
+        Paint(demo,now)
+        if not second and age>=3 then
+            if age>=3.5 then ui:Hide(); return end
+            PaintOutcome(true,(3.5-age)/.5)
+        elseif second and age>=2 then
+            if age>=2.55 then ui:Hide(); return end
+            -- Freeze the interrupted cast at two thirds while it extinguishes.
+            ui.bar:SetValue(2/3); PaintOutcome(false,(2.55-age)/.55)
+        else ui:SetAlpha(1) end
+        ui:Show(); return
     end
     if cast and (now > cast.endTime + .3 or (cast.stopAt and now > cast.stopAt)) then cast = nil end
     local yield = L.ShouldYield(ESIVisible(), cast)
@@ -150,7 +197,7 @@ local function Refresh(deferClaim)
         outcome = nil; Paint(cast,now); ui:SetAlpha(1); ui:Show(); Native(true)
     elseif outcome and now < outcome.untilTime then
         local t = (outcome.untilTime-now)/outcome.duration
-        ui:SetAlpha(AndivalUIDB.castbar.reducedMotion and 1 or math.min(1,t*1.6)); ui:Show(); Native(true)
+        PaintOutcome(outcome.success,t); ui:Show(); Native(true)
     else
         outcome = nil; ui:Hide(); Native(false)
     end
@@ -168,14 +215,8 @@ local function EndCast(event, guid)
     local failure = event == "UNIT_SPELLCAST_INTERRUPTED" or event == "UNIT_SPELLCAST_FAILED"
     local success = event == "UNIT_SPELLCAST_SUCCEEDED" or (previous.channel and GetTime() >= previous.endTime - .1)
     if failure or success then
-        SetFillAtlas(failure and "ui-castingbar-interrupted" or "ui-castingbar-full-standard")
-        if success then ui.bar:SetValue(1) end
-        ui.timer:SetText(failure and (ru and "Прервано" or "Interrupted") or "")
-        ui.spark:Hide(); ui.latency:Hide()
-        ui.finishGlow:SetShown(success and not AndivalUIDB.castbar.reducedMotion)
-        ui.finishGlow:SetAlpha(.28)
-        local duration = failure and .65 or .25
-        outcome = {untilTime=GetTime()+duration,duration=duration}
+        local duration = failure and .55 or .5
+        outcome = {untilTime=GetTime()+duration,duration=duration,success=success}
     end
     Refresh()
 end

@@ -1,0 +1,10 @@
+{
+  "name": "andival-ui-tests",
+  "private": true,
+  "scripts": {
+    "test": "fengari tests/bootstrap.lua"
+  },
+  "devDependencies": {
+    "fengari-node-cli": "0.1.0"
+  }
+}

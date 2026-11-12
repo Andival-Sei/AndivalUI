@@ -1,0 +1,14 @@
+## Interface: 16001
+## Title: Andival UI
+## Notes: Modular, native-style UI refinements. First module: Castbar with Enhanced Soft Interact support.
+## Notes-ruRU: Модульные улучшения интерфейса. Первый модуль: полоса заклинаний с поддержкой Enhanced Soft Interact.
+## Author: Andival
+## Version: 0.1.0
+## SavedVariables: AndivalUIDB
+## OptionalDeps: EnhancedSoftInteract, Quartz
+## IconTexture: Interface\Icons\Spell_Holy_HolyBolt
+Core.lua
+Modules\CastbarLogic.lua
+Integrations\EnhancedSoftInteract.lua
+Modules\Castbar.lua
+Settings.lua

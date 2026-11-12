@@ -75,7 +75,7 @@ local function CreateUI()
     local fillMask = RoundedMask(bar, bar:GetStatusBarTexture(), bar)
     local finishGlow = bar:CreateTexture(nil, "OVERLAY")
     finishGlow:SetAtlas("cast_standard_pipglow", false)
-    finishGlow:SetPoint("RIGHT", bar, "RIGHT", 4, 0); finishGlow:SetBlendMode("ADD"); finishGlow:Hide()
+    finishGlow:SetPoint("CENTER", bar, "CENTER", 0, 0); finishGlow:AddMaskTexture(fillMask); finishGlow:SetBlendMode("ADD"); finishGlow:Hide()
     local name = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     name:SetPoint("BOTTOMLEFT", bar, "TOPLEFT", 0, 4); name:SetJustifyH("LEFT"); name:SetWordWrap(false); name:SetShadowColor(0,0,0,1); name:SetShadowOffset(1,-1)
     local timer = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
@@ -156,7 +156,7 @@ local function PaintOutcome(success, remaining)
     if success then
         ui.bar:SetStatusBarColor(1,1,1)
         ui.finishGlow:ClearAllPoints(); ui.finishGlow:SetPoint("CENTER",ui.bar,"CENTER",0,0)
-        ui.finishGlow:SetSize(AndivalUIDB.castbar.width*.75,AndivalUIDB.castbar.height*2)
+        ui.finishGlow:SetSize(AndivalUIDB.castbar.width,AndivalUIDB.castbar.height)
         ui.finishGlow:SetAlpha(.23*math.sin(math.pi*(1-t)))
     else
         -- The interrupted energy darkens in place rather than snapping to a full red bar.

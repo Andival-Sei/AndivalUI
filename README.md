@@ -4,7 +4,7 @@ A small modular interface addon for **WoW Forever (Interface 16001)**.
 
 ## First module: Castbar
 
-A restrained Blizzard-style **player** castbar: native gold/channel textures, thin bronze framing, spell icon, readable name and remaining time, latency zone, short success/interruption feedback, and reduced-motion option. Target/focus/pet bars are not replaced in this first release.
+A restrained Blizzard-style **player** castbar: native Blizzard backdrop and gold/channel textures, compact text, optional small spell icon, readable name and remaining time, latency zone, short success/interruption feedback, and reduced-motion option. Target/focus/pet bars are not replaced in this first release.
 
 The Enhanced Soft Interact adapter checks the actual visibility of its live interaction bar. When ESI shows gathering or opening progress, Andival UI yields. If ESI is absent, disabled, hidden, or cannot associate the interaction, the regular castbar is the fallback. Preview HUDs do not suppress spells, and an old ESI completion animation does not hide a new spell.
 
@@ -39,7 +39,7 @@ Future modules register independently through `ns.RegisterModule` and use their 
 
 - Runtime files load in a mocked Lua environment; tests cover casts, channels, stale end events, interruption, visible/hidden/transparent ESI, preview exclusion, fallback and restricted timing.
 - Restricted cast data is not calculated or guessed: the addon yields to Blizzard's native bar.
-- No live-client visual or combat testing has yet been completed. This is **0.1.0, an initial test build**, not a claim of raid-ready compatibility.
+- No live-client visual or combat testing has yet been completed. This is **0.2.0, a revised test build**, not a claim of raid-ready compatibility.
 - Actual Blizzard atlas rendering, secure-value behavior, ESI fade timing, and coexistence with other castbar owners need in-game testing.
 - The module does not implement Quartz's mirror timers, GCD, swing timer or target/focus/pet features.
 
@@ -59,3 +59,7 @@ Requires Node.js. `npm ci --ignore-scripts`, then `npm test`. Dev dependencies a
 ## License
 
 Original addon source: MIT. Blizzard assets are referenced from the installed client, not included. This project is not affiliated with Blizzard or Enhanced Soft Interact.
+
+## 0.2.0 revision
+
+Replaces the plain bronze rectangle with native Blizzard castbar backdrop artwork, tighter typography, a smaller optional icon (off by default), and a restrained native completion glow. Explicit atlas assignment and additional event-order/ESI-ownership tests. Existing saved positioning and preferences are preserved; Reset module applies the new dimensions and icon default. No in-game screenshot or visual validation is claimed.

@@ -5,11 +5,11 @@ ns.Castbar = M
 local ru = GetLocale() == "ruRU"
 ns.ru = ru
 local function Safe(v) if issecretvalue and issecretvalue(v) then return nil end return v end
-local defaults = { width = 280, height = 18, scale = 1, x = 0, y = -170, latency = true, icon = true, reducedMotion = false, enabled = true }
+local defaults = { width = 260, height = 14, scale = 1, x = 0, y = -170, latency = true, icon = false, reducedMotion = false, enabled = true }
 local cast, outcome, preview, installed, driver, ui
 local nativeOwned = false
 local warnedQuartz = false
-M.version = "0.1.0"
+M.version = "0.2.0"
 local function Say(s) print("|cffe1bd78Andival UI:|r " .. s) end
 M.Say = Say
 local function ESIVisible() return ns.Integrations.ESI.IsVisible() end
@@ -58,30 +58,28 @@ local function CreateUI()
     local bar = CreateFrame("StatusBar", nil, f)
     bar:SetPoint("BOTTOMLEFT", 0, 0); bar:SetPoint("BOTTOMRIGHT", 0, 0)
     bar:SetMinMaxValues(0, 1)
-    local backing = Texture(bar, "BACKGROUND", {0.025, 0.022, 0.016, 0.92}); backing:SetAllPoints()
-    local borders = {}
-    for _, edge in ipairs({"TOP", "BOTTOM", "LEFT", "RIGHT"}) do
-        local b = Texture(bar, "BORDER", {0.52, 0.39, 0.20, 0.9})
-        if edge == "TOP" or edge == "BOTTOM" then b:SetHeight(1); b:SetPoint(edge .. "LEFT"); b:SetPoint(edge .. "RIGHT")
-        else b:SetWidth(1); b:SetPoint("TOP" .. edge); b:SetPoint("BOTTOM" .. edge) end
-        borders[#borders + 1] = b
-    end
-    local name = f:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-    name:SetPoint("BOTTOMLEFT", bar, "TOPLEFT", 0, 7); name:SetJustifyH("LEFT"); name:SetWordWrap(false)
-    local timer = f:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-    timer:SetPoint("BOTTOMRIGHT", bar, "TOPRIGHT", 0, 7); timer:SetJustifyH("RIGHT"); timer:SetWidth(56)
+    bar:SetStatusBarTexture("Interface\\Buttons\\WHITE8X8")
+    -- Blizzard's native castbar artwork, not a hand-drawn rectangular border.
+    local backing = bar:CreateTexture(nil, "BACKGROUND")
+    backing:SetAtlas("ui-castingbar-background", false)
+    backing:SetPoint("TOPLEFT", bar, "TOPLEFT", -3, 3)
+    backing:SetPoint("BOTTOMRIGHT", bar, "BOTTOMRIGHT", 3, -3)
+    local finishGlow = bar:CreateTexture(nil, "OVERLAY")
+    finishGlow:SetAtlas("AftLevelup-GlowLine", false)
+    finishGlow:SetPoint("CENTER"); finishGlow:SetBlendMode("ADD"); finishGlow:Hide()
+    local name = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    name:SetPoint("BOTTOMLEFT", bar, "TOPLEFT", 0, 4); name:SetJustifyH("LEFT"); name:SetWordWrap(false)
+    local timer = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    timer:SetPoint("BOTTOMRIGHT", bar, "TOPRIGHT", 0, 4); timer:SetJustifyH("RIGHT"); timer:SetWidth(80); timer:SetWordWrap(false)
     timer:SetTextColor(0.94, 0.87, 0.71)
-    local icon = f:CreateTexture(nil, "ARTWORK"); icon:SetPoint("RIGHT", bar, "LEFT", -9, 7); icon:SetTexCoord(.08,.92,.08,.92)
-    local iconBorder = CreateFrame("Frame", nil, f, "BackdropTemplate")
-    iconBorder:SetPoint("TOPLEFT", icon, "TOPLEFT", -1, 1); iconBorder:SetPoint("BOTTOMRIGHT", icon, "BOTTOMRIGHT", 1, -1)
-    iconBorder:SetBackdrop({ edgeFile = "Interface\\Buttons\\WHITE8X8", edgeSize = 1 }); iconBorder:SetBackdropBorderColor(.55,.42,.24,.9)
+    local icon = f:CreateTexture(nil, "ARTWORK"); icon:SetPoint("RIGHT", bar, "LEFT", -7, 3); icon:SetTexCoord(.08,.92,.08,.92)
     local spark = bar:CreateTexture(nil, "OVERLAY")
-    spark:SetAtlas("ui-castingbar-pip"); spark:SetSize(12, 30)
+    spark:SetAtlas("ui-castingbar-pip"); spark:SetSize(8, 22)
     local latency = Texture(bar, "OVERLAY", {.8,.22,.16,.27}); latency:SetPoint("TOPRIGHT"); latency:SetPoint("BOTTOMRIGHT")
     local previewLabel = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
     previewLabel:SetPoint("TOP", bar, "BOTTOM", 0, -7)
     previewLabel:SetText(ru and "ПРЕДПРОСМОТР · перетащи полосу" or "PREVIEW · drag to position")
-    f.bar, f.name, f.timer, f.icon, f.iconBorder, f.spark, f.latency, f.previewLabel = bar, name, timer, icon, iconBorder, spark, latency, previewLabel
+    f.bar, f.name, f.timer, f.icon, f.finishGlow, f.spark, f.latency, f.previewLabel = bar, name, timer, icon, finishGlow, spark, latency, previewLabel
     f:SetScript("OnMouseDown", function(self, button) if preview and button == "LeftButton" and not InCombatLockdown() then self:StartMoving() end end)
     f:SetScript("OnMouseUp", function(self)
         self:StopMovingOrSizing()
@@ -99,13 +97,19 @@ function M.Layout()
     local d = AndivalUIDB.castbar
     ui:SetScale(d.scale); ui:SetSize(d.width, d.height + 25)
     ui:ClearAllPoints(); ui:SetPoint("CENTER", UIParent, "CENTER", d.x/d.scale, d.y/d.scale)
-    ui.bar:SetHeight(d.height); ui.name:SetWidth(d.width - 65)
-    ui.icon:SetSize(d.height + 17, d.height + 17)
-    ui.icon:SetShown(d.icon); ui.iconBorder:SetShown(d.icon)
+    ui.bar:SetHeight(d.height); ui.name:SetWidth(d.width - 90)
+    ui.icon:SetSize(22, 22)
+    ui.finishGlow:SetSize(d.width + 20, 18)
+    ui.icon:SetShown(d.icon)
+end
+local function SetFillAtlas(atlas)
+    local texture = ui.bar:GetStatusBarTexture()
+    if texture:GetAtlas() ~= atlas then texture:SetAtlas(atlas, false) end
 end
 local function Paint(c, now)
+    ui.finishGlow:Hide()
     local progress, remaining = L.Progress(c.startTime, c.endTime, now, c.channel)
-    ui.bar:SetStatusBarTexture(c.channel and "ui-castingbar-filling-channel" or "ui-castingbar-filling-standard")
+    SetFillAtlas(c.channel and "ui-castingbar-filling-channel" or "ui-castingbar-filling-standard")
     ui.bar:SetStatusBarColor(1,1,1); ui.bar:SetValue(progress)
     ui.name:SetText(c.name); ui.icon:SetTexture(c.icon); ui.timer:SetFormattedText("%.1f", remaining)
     ui.spark:ClearAllPoints(); ui.spark:SetPoint("CENTER", ui.bar, "LEFT", AndivalUIDB.castbar.width * progress, 0)
@@ -114,7 +118,7 @@ local function Paint(c, now)
     ui.latency:SetWidth(math.max(1,AndivalUIDB.castbar.width*ratio))
     ui.latency:SetShown(AndivalUIDB.castbar.latency and not c.channel and ratio > 0)
 end
-local function Refresh()
+local function Refresh(deferClaim)
     if not installed then return end
     if not AndivalUIDB.castbar.enabled or QuartzActive() then
         if not preview then ui:Hide(); Native(false); return end
@@ -126,10 +130,11 @@ local function Refresh()
             icon = 135920, startTime = now - elapsed % 3.5, endTime = now - elapsed % 3.5 + 3.5, channel = elapsed >= 3.5, latency = .12}
         Paint(demo,now); ui:SetAlpha(1); ui:Show(); return
     end
-    if cast and now > cast.endTime + .3 then cast = nil end
+    if cast and (now > cast.endTime + .3 or (cast.stopAt and now > cast.stopAt)) then cast = nil end
     local yield = L.ShouldYield(ESIVisible(), cast)
     if cast then
-        cast.yielded = yield; cast.esiClaimed = cast.esiClaimed or yield
+        cast.yielded = yield
+        if not deferClaim then cast.esiClaimed = cast.esiClaimed or yield end
         if yield then ui:Hide(); Native(false); return end
         outcome = nil; Paint(cast,now); ui:SetAlpha(1); ui:Show(); Native(true)
     elseif outcome and now < outcome.untilTime then
@@ -142,22 +147,29 @@ end
 local function EndCast(event, guid)
     if not cast or not L.AcceptEnd(cast.guid,Safe(guid)) then return end
     if cast.channel and event == "UNIT_SPELLCAST_SUCCEEDED" then return end
+    if event == "UNIT_SPELLCAST_STOP" and not cast.channel then
+        cast.stopAt = GetTime() + .08 -- allow result events arriving after STOP
+        return
+    end
     local previous = cast
     cast = nil
     if previous.esiClaimed or ESIVisible() then outcome = nil; Refresh(); return end
     local failure = event == "UNIT_SPELLCAST_INTERRUPTED" or event == "UNIT_SPELLCAST_FAILED"
     local success = event == "UNIT_SPELLCAST_SUCCEEDED" or (previous.channel and GetTime() >= previous.endTime - .1)
     if failure or success then
-        ui.bar:SetStatusBarTexture(failure and "ui-castingbar-interrupted" or "ui-castingbar-full-standard")
+        SetFillAtlas(failure and "ui-castingbar-interrupted" or "ui-castingbar-full-standard")
         if success then ui.bar:SetValue(1) end
         ui.timer:SetText(failure and (ru and "Прервано" or "Interrupted") or "")
         ui.spark:Hide(); ui.latency:Hide()
+        ui.finishGlow:SetShown(success and not AndivalUIDB.castbar.reducedMotion)
+        ui.finishGlow:SetAlpha(.28)
         local duration = failure and .65 or .25
         outcome = {untilTime=GetTime()+duration,duration=duration}
     end
     Refresh()
 end
 function M.Preview(on)
+    Native(false)
     preview = on and GetTime() or nil
     if ui then ui:EnableMouse(on); ui.previewLabel:SetShown(on) end
     outcome = nil; cast = ReadCast(); Refresh()
@@ -186,7 +198,10 @@ driver:SetScript("OnEvent",function(_,event,unit,guid)
         return
     end
     if not installed then return end
-    if event == "PLAYER_REGEN_DISABLED" then M.Preview(false); return end
+    if event == "PLAYER_REGEN_DISABLED" then
+        if _G.AndivalUISettings then _G.AndivalUISettings:Hide() end
+        M.Preview(false); return
+    end
     if event == "PLAYER_ENTERING_WORLD" then
         cast=ReadCast(); outcome=nil
         if QuartzActive() and not warnedQuartz then
@@ -194,7 +209,16 @@ driver:SetScript("OnEvent",function(_,event,unit,guid)
             warnedQuartz=true
         end
     elseif Safe(unit)=="player" then
-        if event=="UNIT_SPELLCAST_START" or event=="UNIT_SPELLCAST_CHANNEL_START" or event=="UNIT_SPELLCAST_DELAYED" or event=="UNIT_SPELLCAST_CHANNEL_UPDATE" then cast=ReadCast(); outcome=nil
+        if event=="UNIT_SPELLCAST_START" or event=="UNIT_SPELLCAST_CHANNEL_START" or event=="UNIT_SPELLCAST_DELAYED" or event=="UNIT_SPELLCAST_CHANNEL_UPDATE" then
+            local previous = cast
+            cast=ReadCast(); outcome=nil
+            if cast then
+                cast.guid = cast.guid or Safe(guid)
+                if (event=="UNIT_SPELLCAST_DELAYED" or event=="UNIT_SPELLCAST_CHANNEL_UPDATE") and previous and previous.channel==cast.channel and L.AcceptEnd(previous.guid,cast.guid) then
+                    cast.esiClaimed = previous.esiClaimed
+                end
+            end
+            Refresh(true); return
         else EndCast(event,guid) end
     end
     Refresh()

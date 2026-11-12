@@ -19,6 +19,13 @@ function Frame:IsVisible() return self.shown and (not self.parent or self.parent
 function Frame:GetAlpha() return self.alpha end
 function Frame:GetEffectiveAlpha() return self.alpha * (self.parent and self.parent:GetEffectiveAlpha() or 1) end
 function Frame:SetAlpha(v) self.alpha=v end
+function Frame:SetStatusBarTexture(path)
+  assert(path:match("^Interface"), "statusbar must start with a real texture path")
+  self.statusbarTexture = new(self)
+end
+function Frame:GetStatusBarTexture() return self.statusbarTexture end
+function Frame:SetAtlas(atlas) self.atlas = atlas end
+function Frame:GetAtlas() return self.atlas end
 function Frame:SetValue(v) self.value=v; if self.scripts.OnValueChanged then self.scripts.OnValueChanged(self,v) end end
 function Frame:SetText(v) self.textValue=v end
 function Frame:SetFormattedText(f,v) self.textValue=string.format(f,v) end
@@ -57,10 +64,11 @@ fire('ADDON_LOADED','AndivalUI')
 local count=0
 local function ok(value,label) assert(value,label); count=count+1; print('PASS '..label) end
 ok(ns.modules.Castbar ~= nil,'registered castbar module')
-ok(AndivalUIDB.schema==1 and AndivalUIDB.castbar.width==280,'isolated default settings')
+ok(AndivalUIDB.schema==1 and AndivalUIDB.castbar.width==260,'isolated default settings')
 current={name='Holy Light',start=100000,finish=103000,guid='a'}; PlayerCastingBarFrame.casting=true
 fire('UNIT_SPELLCAST_START','player','a'); tick(101)
 ok(AndivalUICastbarFrame:IsShown(),'spell is displayed')
+ok(AndivalUICastbarFrame.bar:GetStatusBarTexture():GetAtlas()=='ui-castingbar-filling-standard','native atlas explicitly assigned')
 ok(PlayerCastingBarFrame:GetAlpha()==0,'native duplicate hidden')
 local p=AndivalUICastbarFrame.bar.value; ok(p>.32 and p<.34,'accurate cast progress')
 fire('UNIT_SPELLCAST_STOP','player','old'); ok(AndivalUICastbarFrame:IsShown(),'stale stop ignored')
@@ -81,4 +89,19 @@ AndivalUIDB.castbar.enabled=true
 LibStub=function() return {GetAddon=function() return {GetModule=function() return {IsEnabled=function() return true end} end} end} end
 tick(105.1);ok(not AndivalUICastbarFrame:IsShown(),'active Quartz Player remains sole owner')
 LibStub=nil;tick(105.2);ok(AndivalUICastbarFrame:IsShown(),'disabled Quartz restores our castbar')
+-- Delayed casts retain ESI ownership even after its HUD has disappeared.
+current={name='Gather',start=106000,finish=109000,guid='g'};time=106
+EnhancedSoftInteractHUD.castBar:Show();fire('UNIT_SPELLCAST_START','player','g');tick(106.1)
+EnhancedSoftInteractHUD.castBar:Hide();fire('UNIT_SPELLCAST_DELAYED','player','g');current=nil
+fire('UNIT_SPELLCAST_SUCCEEDED','player','g');ok(not AndivalUICastbarFrame:IsShown(),'delayed cast retains ESI completion ownership')
+current={name='Spell',start=107000,finish=110000,guid='h'};time=107;fire('UNIT_SPELLCAST_START','player','h');tick(108)
+fire('UNIT_SPELLCAST_STOP','player','h');current=nil;fire('UNIT_SPELLCAST_SUCCEEDED','player','h')
+ok(AndivalUICastbarFrame.bar:GetStatusBarTexture():GetAtlas()=='ui-castingbar-full-standard','STOP before success still renders completion')
+channel={name='Channel',start=109000,finish=113000};time=109;fire('UNIT_SPELLCAST_CHANNEL_START','player','chan')
+fire('UNIT_SPELLCAST_INTERRUPTED','player','h');tick(110)
+ok(AndivalUICastbarFrame.bar.value==.75,'old spell event cannot end new channel')
+channel=nil;fire('UNIT_SPELLCAST_CHANNEL_STOP','player','chan');tick(114)
+current={name='Preview overlap',start=114000,finish=117000,guid='preview'};time=114;fire('UNIT_SPELLCAST_START','player','preview')
+SlashCmdList.ANDIVALUI('');ok(PlayerCastingBarFrame:GetAlpha()==1,'preview releases native castbar ownership')
+fire('PLAYER_REGEN_DISABLED');ok(not AndivalUISettings:IsShown(),'combat closes settings and preview')
 print(string.format('%d tests passed',count))

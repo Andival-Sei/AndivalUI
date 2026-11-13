@@ -68,6 +68,13 @@ local function Create(unit)
     local bg=b:CreateTexture(nil,"BACKGROUND");bg:SetAtlas("ui-castingbar-background",false)
     bg:SetPoint("TOPLEFT",b,"TOPLEFT",-3,3);bg:SetPoint("BOTTOMRIGHT",b,"BOTTOMRIGHT",3,-3)
     f.fillMask=Mask(b,b:GetStatusBarTexture(),b);f.outerMask=Mask(b,bg)
+    f.rim=ns.CreateCastbarRim(b)
+    local spark=b:CreateTexture(nil,"OVERLAY")
+    spark:SetAtlas("ui-castingbar-pip");spark:SetSize(8,22);spark:Hide();f.spark=spark
+    local flow=b:CreateTexture(nil,"OVERLAY")
+    flow:SetTexture("Interface\\AddOns\\"..ADDON.."\\Media\\SoftGlow.tga");flow:SetBlendMode("ADD")
+    local pm=b:CreateMaskTexture(nil,"ARTWORK");pm:SetTexture("Interface\\Buttons\\WHITE8X8");pm:SetAllPoints(b:GetStatusBarTexture())
+    flow:AddMaskTexture(f.fillMask);flow:AddMaskTexture(pm);flow:Hide();f.flow,f.progressMask=flow,pm
     local text=f:CreateFontString(nil,"OVERLAY","GameFontHighlightSmall");text:SetPoint("BOTTOMLEFT",b,"TOPLEFT",0,4);text:SetJustifyH("LEFT");text:SetWordWrap(false)
     local timer=f:CreateFontString(nil,"OVERLAY","GameFontHighlightSmall");timer:SetPoint("BOTTOMRIGHT",b,"TOPRIGHT",0,4)
     local delay=f:CreateFontString(nil,"OVERLAY","GameFontHighlightSmall")
@@ -100,6 +107,7 @@ function M.Layout()
         local d=ns.GetCastbarSettings(unit)
         local f=M.bars[unit];local pos=AndivalUIDB.unitcastbars[unit]
         for _,font in ipairs({f.text,f.timer,f.delay}) do ns.CastbarAppearance.ApplyFont(font,d) end
+        f.spark:SetHeight(d.height+6)
         f:SetScale(d.scale);f:SetSize(d.width,d.height);f:ClearAllPoints();f:SetPoint("CENTER",UIParent,"CENTER",pos.x/d.scale,pos.y/d.scale)
         local timerWidth,nameWidth=ns.CastbarAppearance.TextWidths(d)
         f.timer:SetWidth(math.max(1,timerWidth));f.timer:SetWordWrap(false);f.timer:SetJustifyH("RIGHT");f.text:SetWidth(math.max(1,nameWidth));f.text:SetShown(nameWidth>0);f.icon:SetShown(d.icon and not f.protected);f.iconFrame:SetShown(d.icon and not f.protected)
@@ -167,6 +175,13 @@ function M.Refresh(force)
         if c and c.duration and not ns.CastbarDuration.Supported(f.bar) then c=nil end
         if c and (c.duration or preview or now<=c.endTime) then
             local progress=not c.duration and L.DisplayProgress(c,now,d.reducedMotion)
+            f.spark:Hide();f.flow:Hide()
+            if progress and not d.reducedMotion and not demoResult then
+                f.spark:ClearAllPoints();f.spark:SetPoint("CENTER",f.bar,"LEFT",d.width*progress,0);f.spark:Show()
+                local phase=((now-c.startTime)*.45)%1
+                f.flow:SetSize(74,d.height*2);f.flow:ClearAllPoints();f.flow:SetPoint("CENTER",f.bar,"LEFT",d.width*progress*phase,0)
+                f.flow:SetAlpha((.12+.035*math.sin((now-c.startTime)*3))*math.sin(math.pi*phase)^2);f.flow:Show()
+            end
             local delay,alpha=L.DelayLabel(c,now,ru);f.delay:SetText(delay);f.delay:SetAlpha(alpha)
             f:SetAlpha(1);f.bar:SetStatusBarColor(1,1,1)
             ns.CastbarAppearance.ApplyFill(f.bar,d,c.channel and "channel" or "cast")
@@ -200,6 +215,7 @@ function M.Refresh(force)
             end
             f:SetShown(not f.durationFailed)
         else
+            f.spark:Hide();f.flow:Hide()
             local fading=fades[unit] and PaintFade(unit,fades[unit],now,d)
             if not fading then fades[unit]=nil;f.protected=false;ns.CastbarDuration.Clear(f.bar);f:Hide() end
         end

@@ -322,6 +322,7 @@ unitCasts.focus={name='Hidden timing',start=restricted,finish=restricted,guid='s
 fire('PLAYER_FOCUS_CHANGED')
 ok(AndivalUIFocusCastbar:IsShown() and AndivalUIFocusCastbar.bar.nativeObject==duration,'native duration animates focus without Lua timing arithmetic')
 ok(AndivalUIFocusCastbar.timer.textValue=='','secret duration never invents numeric timer')
+ok(not AndivalUIFocusCastbar.spark:IsShown() and not AndivalUIFocusCastbar.flow:IsShown(),'restricted duration never guesses front or interior light positions')
 unitCasts.focus=nil;unitChannels.focus={name='Hidden channel',start=restricted,finish=restricted};fire('PLAYER_FOCUS_CHANGED')
 ok(AndivalUIFocusCastbar.bar.nativeDirection==2,'native secret channel uses remaining-time direction')
 duration.GetElapsedDuration=function()return 1.2 end;duration.GetTotalDuration=function()return 5 end
@@ -449,4 +450,16 @@ settings.SetContentScroll(-9);ok(settings.contentScroll:GetVerticalScroll()==0,'
 local nativeFreeze=CreateFrame('StatusBar');nativeFreeze.andivalDuration={};nativeFreeze:SetMinMaxValues(0,5);nativeFreeze:SetValue(2)
 ok(ns.CastbarDuration.Freeze(nativeFreeze) and nativeFreeze.maximum==5 and nativeFreeze.value==2,'native fade preserves original range instead of clamping to full')
 ns.CastbarDuration.Clear(nativeFreeze);ok(nativeFreeze.maximum==1 and nativeFreeze.value==0,'next ordinary cast resets frozen native range')
+-- Accepted concept: native front + soft interior on every unit.
+ns.Castbar.SetPreviewMode('cast');ns.Castbar.Preview(true);tick(time+1)
+for _,unit in ipairs({'target','targettarget','focus'}) do
+ local f=ns.UnitCastbars.bars[unit];local d=ns.GetCastbarSettings(unit)
+ ok(f.spark:IsShown() and f.spark.atlas=='ui-castingbar-pip' and f.spark:GetHeight()==d.height+6,unit..' native front marker follows unit geometry')
+ ok(f.flow:IsShown() and f.flow.texturePath:find('SoftGlow.tga',1,true),unit..' interior light uses soft edge texture')
+ ok(f.rim.texturePath:find('BronzeRim.tga',1,true),unit..' accepted bronze rim installed')
+ d.reducedMotion=true;ns.UnitCastbars.Refresh();ok(not f.spark:IsShown() and not f.flow:IsShown(),unit..' reduced motion suppresses both effects');d.reducedMotion=false
+end
+ns.Castbar.SetPreviewMode('interrupted');tick(time+2.4)
+for _,unit in ipairs({'target','targettarget','focus'})do local f=ns.UnitCastbars.bars[unit];ok(not f.spark:IsShown() and not f.flow:IsShown(),unit..' outcome extinguishes both moving effects')end
+ns.Castbar.Preview(false)
 print(string.format('%d tests passed',count))

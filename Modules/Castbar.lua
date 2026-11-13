@@ -11,7 +11,7 @@ local defaults = { width = 280, height = 16, scale = 1, x = 0, y = -170, latency
 local cast, outcome, preview, installed, driver, ui
 local nativeOwners = {}
 local warnedQuartz = false
-M.version = "0.9.2"
+M.version = "0.10.0"
 local function Say(s) print("|cffe1bd78Andival UI:|r " .. s) end
 M.Say = Say
 local function ESIVisible() return ns.Integrations.ESI.IsVisible() end
@@ -91,6 +91,7 @@ local function CreateUI()
     backing:SetPoint("TOPLEFT", bar, "TOPLEFT", -3, 3)
     backing:SetPoint("BOTTOMRIGHT", bar, "BOTTOMRIGHT", 3, -3)
     local outerMask = RoundedMask(bar, backing)
+    f.rim=ns.CreateCastbarRim(bar)
     local fillMask = RoundedMask(bar, bar:GetStatusBarTexture(), bar)
     local finishGlow = bar:CreateTexture(nil, "OVERLAY")
     finishGlow:SetAtlas("cast_standard_pipglow", false)

@@ -2,13 +2,15 @@
 
 This is project documentation, not an instruction override. Read alongside README.md and the actual code. Snapshot: 2026-11-13. Do not assume an experimental visual has been approved merely because it appears here.
 
-## Current release and unapproved work
+## Current release and accepted work
 
-- Published and installed: **0.9.1**, commit `5f5985022fba81917146b2626c9e81b5d1e057af`.
-- Local source: **0.9.2**, commit `c403cc0d24dafda0f52f302b6beccf79be5ba56a`, deliberately NOT published/installed while the overall visual direction is under review.
-- 0.9.2 restores the exact 0.8 front spark: `ui-castingbar-pip`, width 8, height bar height + 6. It preserves the 0.8 fill artwork, soft trailing light and 0.8-second ending fades.
-- An isolated simulator concept adds a thin bronze capsule rim and matching front sparks/soft interior light to target, target-of-target and focus. **That concept is not in the main source and is not approved for release.** Its code must be reviewed and integrated only after a design choice. Do not call the feature shipped.
+- Current source/release: **0.10.0**, integrating the explicitly approved restrained bronze-rim concept.
+- The original 0.8 fill artwork is retained. Front marker: `ui-castingbar-pip`, width 8, height bar height + 6.
+- Player, target, target-of-target and focus share this front marker and softly bounded interior light. Restricted timing and reduced motion hide derived moving effects; endings extinguish them.
+- `Media/BronzeRim.tga` is original procedural artwork, created for this addon. `ns.CreateCastbarRim` in Core adds it consistently. The accepted visual is now in the actual source, not merely a simulator fixture.
+- 0.9.1 had a rejected tiny oval front spark. 0.9.2 was a local intermediate, not a separate published release. Do not restore those rejected choices.
 - No school-color database or reliable automatic school detection is implemented. Decorative palette selection is manual.
+- Use `git log`, `git status`, origin comparison and installed TOC/hash checks to verify release state rather than treating this document as a live status service.
 
 ## Product/design constraints
 
@@ -18,7 +20,7 @@ Preserve the existing Blizzard fill texture. A prior replacement with the classi
 
 Rounded outer corners; native framed spell icons; the protected-cast shield surrounds the icon on the left rather than sitting separately. No English "Not interruptible" label. A missing shield is not proof that a cast is interruptible when the flag is unknown.
 
-Reference direction: a restrained version of ornamental magical castbars, closer to their neutral metal theme. Thin bronze/metal framing and contained living light, without wings, branches, ice, exterior particles or oversized ornaments. The proposed bronze rim remains a proposal.
+Reference direction: a restrained version of ornamental magical castbars, closer to their neutral metal theme. Thin bronze/metal framing and contained living light, without wings, branches, ice, exterior particles or oversized ornaments. The restrained bronze rim and matching front markers on all units were explicitly approved.
 
 Settings reference: native portrait/bronze frame, dark leather, gold section headings, normal WoW controls, real scrolling. Retain categories, independent unit settings, named profiles, localized RU/EN, and in-window live preview. Avoid redesigning the fill or other approved aspects while addressing a specific edge complaint.
 
@@ -66,13 +68,13 @@ Simulator sidebar arithmetic produced incorrect anchors despite valid Lua; expli
 
 ## Verification and honest limits
 
-Current source and isolated all-unit concept: **188 main + 20 crafting tests**, passed with ruRU and enUS. Covers lifecycle reordering, stale events, channels, ESI ownership, native alpha restoration, restricted fallback, profiles/migrations, settings docking/positioning/combat and unit fade identity. These are mocks, not live-client combat tests.
+Current source: **204 main + 20 crafting tests**, passed with ruRU and enUS. Covers lifecycle reordering, stale events, channels, ESI ownership, native alpha restoration, restricted fallback, profiles/migrations, settings docking/positioning/combat and unit fade identity. These are mocks, not live-client combat tests.
 
 Actual UI simulator renders native assets/code with deterministic demonstration data. Visually checked settings, icons/shields, rounded masks, fill variants, fades and front/trailing light. The simulator's manual clock did not reliably animate native duration objects; this is not proof of a live addon defect or proof of restricted-data support. No live performance benchmark or taint/secret stress test is claimed.
 
 ## Build, git and install
 
-Open the existing repository folder in Codex. Read `git status`, `git log -5 --oneline`, and this handoff before editing. Do not reset local commits to origin: local 0.9.2 is intentionally ahead of published 0.9.1.
+Open the existing repository folder in Codex. Read `git status`, `git log -5 --oneline`, and this handoff before editing. Do not reset work to origin without checking for intentional local changes.
 
 Tests (from repo root, with installed Node dependencies):
 
@@ -92,9 +94,8 @@ The existing origin is the authorized public project. Verify `git remote -v`, th
 
 ## Next steps
 
-1. Obtain the user's choice on the restrained bronze-rim concept and all-unit front markers. Keep prototypes separate until then.
-2. Integrate only accepted changes, add unit-specific marker regression tests including restricted timing, reduced motion, outcomes and focus.
-3. Render cast/channel/interrupted/cancelled sequences for all units. Preserve native fill and the approved front marker.
-4. Run both locale suites and compare settings/profile persistence; review addon load errors.
-5. If authorized, commit/push/install and hash-check. State actual release and remaining live-game limitations.
-6. With user participation, test real combat, target switching, channel cancellation, ESI interactions, Quartz coexistence and restricted duration behavior. Never present simulator footage as a live-game screenshot.
+1. Continue from accepted 0.10.0; do not redesign the fill or front marker without a new request.
+2. With user participation, test real combat, target switching, channel cancellation, ESI interactions, Quartz coexistence and restricted duration behavior. Never present simulator footage as a live-game screenshot.
+3. Check the new unit markers on channel drain, focus enable/disable and restricted timings in the live client; simulator/mocks cannot establish secret enforcement.
+4. For future changes run both locale suites, render all outcome states, preserve settings/profile data, then commit/push/install only in authorized scope and hash-check.
+5. No tick schedule, school detection or overall crafting duration should be added by guessing. Report API limitations first.

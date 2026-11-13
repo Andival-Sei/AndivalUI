@@ -219,3 +219,12 @@ function Profiles.Delete(name,confirmed)
     if wasActive then ns.InitCastbarSettings() end
     return true
 end
+
+-- Original restrained bronze frame, independent of fill texture and user palette.
+function ns.CreateCastbarRim(bar)
+    local rim=bar:CreateTexture(nil,"OVERLAY",nil,7)
+    rim:SetTexture("Interface\\AddOns\\"..ADDON.."\\Media\\BronzeRim.tga")
+    rim:SetPoint("TOPLEFT",bar,"TOPLEFT",-4,4)
+    rim:SetPoint("BOTTOMRIGHT",bar,"BOTTOMRIGHT",4,-4)
+    return rim
+end

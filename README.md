@@ -168,3 +168,7 @@ Restores the original 0.8 Blizzard cast/channel/success/interrupted fill atlases
 ## 0.9.2 original front marker
 
 Restores the exact 0.8 front marker: `ui-castingbar-pip`, width 8 and height bar height + 6. The original 0.8 fill artwork stays unchanged. Only the trailing interior glow uses the soft edge-free texture; the front intentionally remains a visible vertical marker. Smooth ending transitions are retained.
+
+## 0.10.0 approved restrained frame
+
+Adds the approved thin original bronze rim while retaining the 0.8 native fill artwork. Player, target, target-of-target and focus now share the prominent native front marker and softly bounded interior light. Public timing only: restricted duration objects never produce guessed marker positions. Reduced motion and ending states suppress moving effects. Existing profile settings and the default-disabled focus remain unchanged.

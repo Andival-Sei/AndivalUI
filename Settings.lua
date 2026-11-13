@@ -193,7 +193,7 @@ function ns.CreateSettings()
     end
     AppearanceRow("font",T("Шрифт","Font"),{{"native",T("Шрифт WoW","WoW font")},{"chat",T("Шрифт чата","Chat font")}},0)
     AppearanceRow("fontSize",T("Размер текста","Text size"),{{0,T("Авто","Automatic")},{10,"10"},{11,"11"},{12,"12"},{14,"14"},{16,"16"},{18,"18"}},-44)
-    AppearanceRow("texture",T("Текстура полосы","Bar texture"),{{"native",T("Классическая Blizzard","Classic Blizzard")},{"smooth",T("Ровная заливка","Smooth fill")}},-88)
+    AppearanceRow("texture",T("Текстура полосы","Bar texture"),{{"native",T("Blizzard","Blizzard")},{"smooth",T("Ровная заливка","Smooth fill")}},-88)
     local palette={{"native",T("Родной цвет","Native color")},{"amber",T("Янтарный","Amber")},{"blue",T("Голубой","Blue")},{"teal",T("Бирюзовый","Teal")},{"violet",T("Фиолетовый","Violet")},{"white",T("Светлый металл","Pale metal")}}
     AppearanceRow("castColor",T("Цвет обычного каста","Cast color"),palette,-132)
     AppearanceRow("channelColor",T("Цвет ченнелинга","Channel color"),palette,-176)

@@ -11,7 +11,7 @@ local defaults = { width = 280, height = 16, scale = 1, x = 0, y = -170, latency
 local cast, outcome, preview, installed, driver, ui
 local nativeOwners = {}
 local warnedQuartz = false
-M.version = "0.9.0"
+M.version = "0.9.1"
 local function Say(s) print("|cffe1bd78Andival UI:|r " .. s) end
 M.Say = Say
 local function ESIVisible() return ns.Integrations.ESI.IsVisible() end
@@ -110,7 +110,7 @@ local function CreateUI()
     local iconFrame = ns.CreateIconFrame(f,icon,22)
     f.iconFrame=iconFrame
     local spark = bar:CreateTexture(nil, "OVERLAY")
-    spark:SetTexture("Interface\\AddOns\\"..ADDON.."\\Media\\SoftGlow.tga");spark:SetBlendMode("ADD");spark:SetVertexColor(1,.95,.8,.85);spark:SetSize(12,20)
+    spark:SetTexture("Interface\\AddOns\\"..ADDON.."\\Media\\SoftGlow.tga");spark:SetBlendMode("ADD");spark:SetVertexColor(1,.95,.8,.85);spark:SetSize(14,14)
     local latency = Texture(bar, "OVERLAY", {.8,.22,.16,.27}); latency:SetPoint("TOPRIGHT"); latency:SetPoint("BOTTOMRIGHT")
     latency:AddMaskTexture(fillMask)
     -- Soft moving illumination is clipped to both the rounded outline and current fill.
@@ -146,7 +146,7 @@ function M.Layout()
     ui:ClearAllPoints(); ui:SetPoint("CENTER", UIParent, "CENTER", d.x/d.scale, d.y/d.scale)
     local timerWidth,nameWidth=A.TextWidths(d)
     ui.bar:SetHeight(d.height);ui.timer:SetWidth(math.max(1,timerWidth));ui.name:SetWidth(math.max(1,nameWidth));ui.name:SetShown(nameWidth>0)
-    ui.spark:SetHeight(d.height+4)
+    ui.spark:SetHeight(math.min(16,d.height*.85))
     ui.icon:SetSize(22, 22)
     ui.finishGlow:SetSize(36, 36)
     ui.icon:SetShown(d.icon); ui.iconFrame:SetShown(d.icon)

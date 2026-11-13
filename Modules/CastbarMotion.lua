@@ -28,6 +28,11 @@ function L.DelayLabel(c,now,ru)
     return text,L.Clamp((1.8-(now-c.delayAt))/.4,0,1)
 end
 function L.PreviewCast(mode,now,origin,unit,ru)
+    if mode=="sequence" then
+        local modes={"cast","channel","delayed","success","interrupted","protected","esi"}
+        local step=math.floor((now-origin)/4)
+        mode=modes[step%#modes+1];origin=origin+step*4
+    end
     local age=(now-origin)%4
     local channel=mode=='channel' or (mode=='sequence' and unit=='targettarget')
     local c={name=channel and (ru and 'Поток энергии' or 'Energy channel') or (ru and 'Свет небес' or 'Holy Light'),icon=channel and 136048 or 135920,

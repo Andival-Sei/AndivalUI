@@ -54,7 +54,10 @@ local unitCasts,unitChannels={},{}
 function UnitExists(unit) return unit=="player" or unitCasts[unit]~=nil or unitChannels[unit]~=nil end
 local time=100; local current; local channel; local restricted={}
 function GetTime() return time end
-function GetLocale() return 'ruRU' end
+local characterName='TestPlayer'
+function UnitName() return characterName end
+function GetRealmName() return 'TestRealm' end
+function GetLocale() return os.getenv('TEST_LOCALE') or 'ruRU' end
 function GetNetStats() return 0,0,50,100 end
 function InCombatLockdown() return false end
 function issecretvalue(v) return v==restricted end
@@ -89,7 +92,7 @@ EnhancedSoftInteractHUD.inEditMode=nil;EnhancedSoftInteractHUD.castBar:SetAlpha(
 EnhancedSoftInteractHUD.castBar:SetAlpha(1);tick(101.5);current=nil;fire('UNIT_SPELLCAST_SUCCEEDED','player','a');ok(not AndivalUICastbarFrame:IsShown(),'ESI completion does not duplicate outcome')
 EnhancedSoftInteractHUD.castBar:Hide();EnhancedSoftInteractHUD.castFinish=new(EnhancedSoftInteractHUD)
 current={name='Holy Light',start=102000,finish=105000,guid='b'};time=102;fire('UNIT_SPELLCAST_START','player','b');ok(AndivalUICastbarFrame:IsShown(),'new spell not hidden by old ESI finish')
-current=nil;fire('UNIT_SPELLCAST_INTERRUPTED','player','b');ok(AndivalUICastbarFrame.timer.textValue=='Прервано','interrupt feedback');tick(103);ok(not AndivalUICastbarFrame:IsShown(),'interrupt fades out')
+current=nil;fire('UNIT_SPELLCAST_INTERRUPTED','player','b');ok(AndivalUICastbarFrame.timer.textValue==(GetLocale()=='ruRU' and 'Прервано' or 'Interrupted'),'interrupt feedback');tick(103);ok(not AndivalUICastbarFrame:IsShown(),'interrupt fades out')
 channel={name='Channel',start=103000,finish=107000};fire('UNIT_SPELLCAST_CHANNEL_START','player');fire('UNIT_SPELLCAST_SUCCEEDED','player');tick(104);ok(AndivalUICastbarFrame.bar.value==.75,'channel drains correctly');channel=nil;fire('UNIT_SPELLCAST_CHANNEL_STOP','player');tick(105)
 current={name='Secret',start=restricted,finish=restricted,guid='s'};fire('UNIT_SPELLCAST_START','player','s');ok(not AndivalUICastbarFrame:IsShown(),'restricted timing falls back safely')
 current=nil;SlashCmdList.ANDIVALUI('');ok(AndivalUISettings:IsShown() and AndivalUICastbarFrame:IsShown(),'settings live preview');AndivalUISettings:Hide();ok(not AndivalUICastbarFrame:IsShown(),'closing preview leaves no phantom bar')
@@ -193,4 +196,38 @@ ns.Castbar.Preview(false);ns.Castbar.SetPreviewMode('sequence')
 ns.Castbar.SetPreviewMode('interrupted');ns.Castbar.Preview(true);time=time+2.3;ns.Castbar.Refresh()
 ok(AndivalUICastbarFrame.bar.value==2/3,'explicit interruption preview freezes fill')
 ns.Castbar.Preview(false);ns.Castbar.SetPreviewMode('sequence')
+local rus=GetLocale()=='ruRU'
+ok(AndivalUISettings.TitleText.textValue==(rus and 'Andival UI · Полосы заклинаний' or 'Andival UI · Castbars'),'settings title follows client locale')
+local expected=rus and {cast='Обычный каст',channel='Ченнелинг',delayed='Задержка',success='Завершение',interrupted='Прерывание',protected='Со щитом',esi='Передача ESI',sequence='Все по кругу'} or {cast='Cast',channel='Channel',delayed='Delay',success='Success',interrupted='Interrupted',protected='Protected',esi='ESI handoff',sequence='Cycle all'}
+for mode,text in pairs(expected) do ok(AndivalUISettings.modeButtons[mode].textValue==text,'localized mode '..mode) end
+local P=ns.Profiles
+ok(P.Current()=='Default','legacy settings migrate into Default')
+local originalWidth=AndivalUIDB.castbar.width
+ok(P.Copy('Default','Рейд'),'named profile accepts Cyrillic')
+ok(P.Switch('Рейд'),'named profile switches')
+AndivalUIDB.castbar.width=421
+ok(P.Switch('Default') and AndivalUIDB.castbar.width==originalWidth,'named profile settings are independent')
+ok(P.Switch('Рейд') and AndivalUIDB.castbar.width==421,'named settings persist across switches')
+characterName='SecondPlayer';P.Init();ns.InitCastbarSettings()
+ok(P.Current()=='Default','new character defaults independently')
+characterName='TestPlayer';P.Init();ns.InitCastbarSettings()
+ok(P.Current()=='Рейд','character remembers its selected profile')
+ok(P.Rename('Рейд','Raid') and P.Current()=='Raid','rename retains active profile')
+ok(not P.Copy('Raid','Raid'),'existing profile cannot be overwritten')
+ok(not P.Create('bad|name'),'unsafe profile name rejected')
+ok(not P.Delete('Default',true) and not P.Rename('Default','Other'),'default is protected')
+ok(not P.Delete('Raid',false),'profile deletion needs confirmation')
+ok(P.Delete('Raid',true) and P.Current()=='Default' and AndivalUIDB.castbar.width==originalWidth,'delete active profile safely falls back to Default')
+ok(AndivalUIDB.characterProfiles['TestPlayer - TestRealm']=='Default','delete repairs character selection')
+ok(P.Create('Temporary'),'create spare profile for guarded transitions')
+characterName=nil;P.Init();local switched,why=P.Switch('Temporary')
+ok(not switched and why=='notready','missing character identity cannot persist a guessed selection')
+characterName='TestPlayer';P.Init()
+local normalCombat=InCombatLockdown;InCombatLockdown=function()return true end
+ok(not P.Switch('Temporary') and not P.Delete('Temporary',true) and not P.Create('Combat'),'named profile mutations blocked in combat')
+InCombatLockdown=normalCombat;P.Delete('Temporary',true)
+ok(not P.Create('По умолчанию'),'localized Default name is reserved')
+local sample=ns.CastbarLogic.PreviewCast('sequence',5,0,'player',false)
+ok(sample.channel,'Cycle all actually includes channel state')
+ok(ns.CastbarLogic.PreviewCast('sequence',25,0,'player',false)==nil,'Cycle all includes safe ESI handoff demonstration')
 print(string.format('%d tests passed',count))

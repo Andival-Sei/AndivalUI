@@ -9,7 +9,7 @@ local defaults = { width = 280, height = 16, scale = 1, x = 0, y = -170, latency
 local cast, outcome, preview, installed, driver, ui
 local nativeOwned = false
 local warnedQuartz = false
-M.version = "0.6.0"
+M.version = "0.7.0"
 local function Say(s) print("|cffe1bd78Andival UI:|r " .. s) end
 M.Say = Say
 local function ESIVisible() return ns.Integrations.ESI.IsVisible() end
@@ -179,28 +179,11 @@ local function Refresh(deferClaim)
     end
     local now = GetTime()
     if preview then
-        if M.previewMode and M.previewMode~="sequence" then
-            local c,result=L.PreviewCast(M.previewMode,now,preview,"player",ru)
-            if not c then ui:Hide();return end
-            Paint(c,now);ui:SetAlpha(1)
-            if result then if not result.success then ui.bar:SetValue(2/3) end;PaintOutcome(result.success,result.remaining) end
-            ui:Show();return
-        end
-        local elapsed = (now-preview) % 7
-        local second = elapsed >= 4
-        local age = second and elapsed-4 or elapsed
-        local demo = {name = ru and "Свет небес" or "Holy Light", icon=135920,
-            startTime=now-age,endTime=now-age+3,channel=false,latency=.12}
-        Paint(demo,now)
-        if not second and age>=3 then
-            if age>=3.5 then ui:Hide(); return end
-            PaintOutcome(true,(3.5-age)/.5)
-        elseif second and age>=2 then
-            if age>=2.55 then ui:Hide(); return end
-            -- Freeze the interrupted cast at two thirds while it extinguishes.
-            ui.bar:SetValue(2/3); PaintOutcome(false,(2.55-age)/.55)
-        else ui:SetAlpha(1) end
-        ui:Show(); return
+        local c,result=L.PreviewCast(M.previewMode or "sequence",now,preview,"player",ru)
+        if not c then ui:Hide();return end
+        Paint(c,now);ui:SetAlpha(1)
+        if result then if not result.success then ui.bar:SetValue(2/3) end;PaintOutcome(result.success,result.remaining) end
+        ui:Show();return
     end
     if cast and (now > cast.endTime + .3 or (cast.stopAt and now > cast.stopAt)) then cast = nil end
     local yield = L.ShouldYield(ESIVisible(), cast)
@@ -250,7 +233,7 @@ function M.Reset()
     M.Layout(); Refresh()
 end
 function M.Status()
-    Say((ru and "ESI: " or "ESI: ") .. (_G.EnhancedSoftInteractHUD and "detected" or "not loaded") .. "; Quartz Player: " .. tostring(QuartzActive()))
+    Say("ESI: " .. (_G.EnhancedSoftInteractHUD and (ru and "обнаружен" or "detected") or (ru and "не загружен" or "not loaded")) .. "; Quartz Player: " .. (QuartzActive() and (ru and "включён" or "enabled") or (ru and "выключен" or "disabled")))
 end
 M.Refresh = Refresh
 local events = {"UNIT_SPELLCAST_START","UNIT_SPELLCAST_DELAYED","UNIT_SPELLCAST_STOP","UNIT_SPELLCAST_FAILED","UNIT_SPELLCAST_FAILED_QUIET","UNIT_SPELLCAST_INTERRUPTED","UNIT_SPELLCAST_SUCCEEDED","UNIT_SPELLCAST_CHANNEL_START","UNIT_SPELLCAST_CHANNEL_UPDATE","UNIT_SPELLCAST_CHANNEL_STOP"}

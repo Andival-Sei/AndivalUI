@@ -39,7 +39,7 @@ Future modules register independently through `ns.RegisterModule` and use their 
 
 - Runtime files load in a mocked Lua environment; tests cover casts, channels, stale end events, interruption, visible/hidden/transparent ESI, preview exclusion, fallback and restricted timing.
 - Restricted cast data is not calculated or guessed: the addon yields to Blizzard's native bar.
-- No live-client visual or combat testing has yet been completed. This is **0.6.0, a revised test build**, not a claim of raid-ready compatibility.
+- No live-client visual or combat testing has yet been completed. This is **0.7.0, a revised test build**, not a claim of raid-ready compatibility.
 - Actual Blizzard atlas rendering, secure-value behavior, ESI fade timing, and coexistence with other castbar owners need in-game testing.
 - The module does not implement Quartz's mirror timers, GCD, swing timer or focus/pet features.
 
@@ -115,3 +115,11 @@ An authoritative cast timing change now produces a transient signed correction (
 Settings offer looping preview and individual cast, channel, delay, success, interruption, protected-spell and ESI-suppression demonstrations. ESI simulation hides only our sample bars and never changes ESI settings or globals. The shield preview applies to target/target-of-target. Preview is disabled in combat. Existing real player success/interruption effects are retained; target outcome animations here are preview-only, not inferred from disappearance of an enemy cast.
 
 Channels retain reverse fill and elapsed / total timing. Tick marks are deliberately absent: no reliable per-spell tick schedule has been verified for this client. School colors remain deferred because a build-matched data extraction is not yet available. No live-game combat validation is claimed.
+
+## 0.7.0 named profiles and language audit
+
+Open `/aui` → **Profiles**. Create a named profile from Default, duplicate a selected profile, switch, rename, or delete with explicit confirmation. Creation/duplication immediately selects the new profile for this character. Profile data is account-wide; each character's selection is stored separately. Characters intentionally selecting the same profile share its live settings.
+
+Existing settings migrate into **Default** once, including positions. Default remains editable but cannot be deleted or renamed. Copies are independent deep copies; existing names cannot be overwritten. Deleting a profile returns every character using it to Default. No changes are allowed in combat; switching waits until character identity is available. No import/export or automatic specialization switching is included.
+
+The interface automatically follows the WoW client: ruRU uses Russian; enUS/enGB and other locales use English fallback. There is no manual language selector. Settings, all test modes, profile operations/errors, status diagnostics and decimal formatting have been audited. Actual spell names still come from the client. The preview's Cycle all now includes all seven explicit states, including simulated ESI suppression; this is sample data only.

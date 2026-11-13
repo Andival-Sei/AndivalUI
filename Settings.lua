@@ -2,6 +2,7 @@ local _, ns = ...
 local ru, M = ns.ru, ns.Castbar
 local panel
 local function T(a,b) return ru and a or b end
+local function Decimal(v) local s=tostring(v);return ru and (s:gsub("%.",",")) or s end
 local units={"player","target","targettarget"}
 local names={player=T("Игрок","Player"),target=T("Цель","Target"),targettarget=T("Цель цели","Target of target")}
 function ns.CreateSettings()
@@ -56,7 +57,7 @@ function ns.CreateSettings()
     local function Slider(key,label,min,max,step,y)
         local c=CreateFrame("Slider",nil,panel,"OptionsSliderTemplate")
         c:SetPoint("TOPLEFT",34,y);c:SetSize(230,17);c:SetMinMaxValues(min,max);c:SetValueStep(step);c:SetObeyStepOnDrag(true)
-        c.Low:SetText(tostring(min));c.High:SetText(tostring(max))
+        c.Low:SetText(Decimal(min));c.High:SetText(Decimal(max))
         -- Some client/template variants retain additional default Low/High labels.
         if c.GetRegions then
             for _,region in ipairs({c:GetRegions()}) do
@@ -65,7 +66,7 @@ function ns.CreateSettings()
         end
         c:SetScript("OnValueChanged",function(self,value)
             value=math.floor(value/step+.5)*step
-            self.Text:SetText(label..": "..string.format(step<1 and "%.2f" or "%d",value))
+            self.Text:SetText(label..": "..Decimal(string.format(step<1 and "%.2f" or "%d",value)))
             if loading or not CanEdit() then return end
             ns.GetCastbarSettings(selected)[key]=value;Apply()
         end)
@@ -139,11 +140,112 @@ function ns.CreateSettings()
     end
     panel.SetTestMode=function(mode) if CanEdit() and modeButtons[mode] then StartMode(mode) end end
     panel.RefreshControls=RefreshControls
+    -- Named profile manager is a separate dialog so the castbar controls stay uncluttered.
+    local manager=CreateFrame("Frame","AndivalUIProfiles",panel,"BasicFrameTemplateWithInset")
+    manager:SetSize(530,500);manager:SetPoint("CENTER");manager:SetFrameStrata("FULLSCREEN_DIALOG");manager:EnableMouse(true)
+    manager.TitleText:SetText(T("Профили Andival UI","Andival UI profiles"))
+    local chosen,page,pendingDelete="Default",1,nil
+    local function ProfileName(name) return name=="Default" and T("По умолчанию","Default") or name end
+    local profileRows={}
+    local UpdateProfiles
+    local function ProfileLabel(text,x,y,w)
+        local f=manager:CreateFontString(nil,"OVERLAY","GameFontHighlightSmall")
+        f:SetPoint("TOPLEFT",x,y);f:SetWidth(w);f:SetJustifyH("LEFT");f:SetText(text);return f
+    end
+    local function ProfileButton(text,x,y,w,fn)
+        local b=CreateFrame("Button",nil,manager,"UIPanelButtonTemplate")
+        b:SetPoint("TOPLEFT",x,y);b:SetSize(w,26);b:SetText(text)
+        b:SetScript("OnClick",function() if CanEdit() then fn() end end);return b
+    end
+    local currentLabel=ProfileLabel("",20,-40,490)
+    local profileStatus=ProfileLabel("",20,-450,490)
+    local errors={
+        invalid=T("Имя: 1–32 символа, без управляющих знаков и |.","Use 1–32 characters, without control characters or |."),
+        reserved=T("Это имя зарезервировано.","That name is reserved."),
+        exists=T("Такой профиль уже существует.","A profile with that name already exists."),
+        missing=T("Профиль не найден.","Profile not found."),
+        protected=T("«По умолчанию» нельзя удалить или переименовать.","Default cannot be deleted or renamed."),
+        notready=T("Дождись загрузки персонажа и попробуй снова.","Wait for your character to finish loading and try again."),
+        combat=T("Профили можно менять только вне боя.","Profiles can be changed only out of combat."),
+        confirm=T("Подтверди удаление ниже.","Confirm deletion below."),
+    }
+    local function Result(ok,err)
+        profileStatus:SetText(ok and T("Сохранено.","Saved.") or (errors[err] or T("Не удалось выполнить действие.","The action could not be completed.")))
+        return ok
+    end
+    local function RefreshActive()
+        M.Preview(false);Apply();RefreshControls()
+        if previewOn then if M.SetPreviewMode then M.SetPreviewMode(previewMode) end;M.Preview(true) end
+    end
+    ProfileLabel(T("Сохранённые профили","Saved profiles"),20,-68,210)
+    for i=1,5 do
+        local row=ProfileButton("",20,-92-(i-1)*31,210,function()
+            local list=ns.Profiles.List();chosen=list[(page-1)*5+i] or "Default";pendingDelete=nil;UpdateProfiles()
+        end)
+        profileRows[i]=row
+    end
+    ProfileButton("<",20,-252,45,function()page=math.max(1,page-1);UpdateProfiles()end)
+    ProfileButton(">",185,-252,45,function()page=math.min(math.max(1,math.ceil(#ns.Profiles.List()/5)),page+1);UpdateProfiles()end)
+    local pageLabel=ProfileLabel("",77,-260,100)
+    ProfileButton(T("Использовать","Use selected"),20,-288,210,function()
+        if Result(ns.Profiles.Switch(chosen)) then RefreshActive();UpdateProfiles() end
+    end)
+    ProfileLabel(T("Новое имя","New name"),250,-68,250)
+    local nameBox=CreateFrame("EditBox","AndivalUIProfileName",manager,"InputBoxTemplate")
+    nameBox:SetSize(240,26);nameBox:SetPoint("TOPLEFT",255,-91);nameBox:SetAutoFocus(false);nameBox:SetMaxLetters(32)
+    nameBox:SetScript("OnEscapePressed",function(self)self:ClearFocus()end)
+    nameBox:SetScript("OnEnterPressed",function(self)self:ClearFocus()end)
+    ProfileButton(T("Из «По умолчанию»","New from Default"),250,-130,250,function()
+        local ok,name=ns.Profiles.Create(nameBox:GetText())
+        if Result(ok,name) then chosen=name;pendingDelete=nil;local switched,why=ns.Profiles.Switch(name);if switched then RefreshActive() else Result(false,why) end;nameBox:SetText("");UpdateProfiles() end
+    end)
+    ProfileButton(T("Копия выбранного","Duplicate selected"),250,-164,250,function()
+        local ok,name=ns.Profiles.Copy(chosen,nameBox:GetText())
+        if Result(ok,name) then chosen=name;pendingDelete=nil;local switched,why=ns.Profiles.Switch(name);if switched then RefreshActive() else Result(false,why) end;nameBox:SetText("");UpdateProfiles() end
+    end)
+    local rename=ProfileButton(T("Переименовать","Rename selected"),250,-198,250,function()
+        local ok,name=ns.Profiles.Rename(chosen,nameBox:GetText())
+        if Result(ok,name) then chosen=name;pendingDelete=nil;nameBox:SetText("");UpdateProfiles() end
+    end)
+    local delete=ProfileButton(T("Удалить выбранный…","Delete selected…"),250,-232,250,function()
+        pendingDelete=chosen;UpdateProfiles()
+    end)
+    ProfileLabel(T("Создание и копирование сразу включают новый профиль для этого персонажа. Изменения сохраняются автоматически.","Create and duplicate immediately select the new profile for this character. Changes are saved automatically."),250,-279,250)
+    local confirmation=ProfileLabel("",20,-340,490)
+    local yes=ProfileButton(T("Да, удалить","Yes, delete"),20,-391,210,function()
+        if not pendingDelete then return end
+        local ok,err=ns.Profiles.Delete(pendingDelete,true)
+        pendingDelete=nil
+        if Result(ok,err) then chosen=ns.Profiles.Current();RefreshActive() end
+        UpdateProfiles()
+    end)
+    local no=ProfileButton(T("Отмена","Cancel"),250,-391,250,function()pendingDelete=nil;UpdateProfiles()end)
+    UpdateProfiles=function()
+        local list=ns.Profiles.List();page=math.min(page,math.max(1,math.ceil(#list/5)))
+        currentLabel:SetText(T("Текущий профиль: ","Current profile: ")..ProfileName(ns.Profiles.Current()))
+        for i,row in ipairs(profileRows) do
+            local name=list[(page-1)*5+i]
+            row:SetShown(name~=nil);row:SetText(name and ProfileName(name) or "");row:SetEnabled(name~=chosen)
+        end
+        pageLabel:SetText(page.." / "..math.max(1,math.ceil(#list/5)))
+        rename:SetEnabled(chosen~="Default");delete:SetEnabled(chosen~="Default")
+        confirmation:SetText(pendingDelete and (T("Удалить «","Delete “")..ProfileName(pendingDelete)..T("»? Персонажи с этим профилем перейдут на «По умолчанию».","”? Characters using it will switch to Default.")) or "")
+        yes:SetShown(pendingDelete~=nil);no:SetShown(pendingDelete~=nil)
+    end
+    manager:SetScript("OnShow",function()
+        if not CanEdit() then return end
+        chosen=ns.Profiles.Current();pendingDelete=nil;page=1;profileStatus:SetText("");UpdateProfiles()
+    end)
+    manager:SetScript("OnHide",function()pendingDelete=nil;nameBox:ClearFocus()end)
+    manager:Hide();table.insert(UISpecialFrames,"AndivalUIProfiles")
+    manager.Refresh=UpdateProfiles;manager.nameBox=nameBox;manager.rows=profileRows
+    Button(T("Профили…","Profiles…"),25,-525,170,function()manager:Show()end)
+    panel.ShowProfiles=function()if CanEdit() then manager:Show()end end
     panel:SetScript("OnShow",function()
         if not CanEdit() then return end
         ns.InitCastbarSettings();RefreshControls();StartMode(previewMode)
     end)
-    panel:SetScript("OnHide",function() M.Preview(false) end)
+    panel:SetScript("OnHide",function() manager:Hide();M.Preview(false) end)
     panel:RegisterEvent("PLAYER_REGEN_DISABLED")
     panel:SetScript("OnEvent",function() panel:Hide() end)
     panel:Hide();table.insert(UISpecialFrames,"AndivalUISettings")

@@ -39,7 +39,7 @@ Future modules register independently through `ns.RegisterModule` and use their 
 
 - Runtime files load in a mocked Lua environment; tests cover casts, channels, stale end events, interruption, visible/hidden/transparent ESI, preview exclusion, fallback and restricted timing.
 - Restricted cast data is not calculated or guessed: the addon yields to Blizzard's native bar.
-- No live-client visual or combat testing has yet been completed. This is **0.5.2, a revised test build**, not a claim of raid-ready compatibility.
+- No live-client visual or combat testing has yet been completed. This is **0.5.3, a revised test build**, not a claim of raid-ready compatibility.
 - Actual Blizzard atlas rendering, secure-value behavior, ESI fade timing, and coexistence with other castbar owners need in-game testing.
 - The module does not implement Quartz's mirror timers, GCD, swing timer or focus/pet features.
 
@@ -91,3 +91,7 @@ Optional spell icons now use a consistent native Blizzard quick-slot rim on play
 0.5.2 also replaces the interim text status labels with Blizzard's native castbar shield, shown **only** for a confirmed non-interruptible spell. Unknown and explicitly interruptible spells show no shield; absence of the shield does not assert interruptibility when the API state is unavailable.
 
 The protection shield is anchored on the left: before the framed spell icon when icons are enabled, otherwise before the bar. Its spacing avoids covering the spell artwork or progress.
+
+## 0.5.3 shield composition
+
+The native shield now surrounds the spell icon on the left of the bar, as one composition, rather than appearing as a separate badge. The icon is drawn above the shield; its normal square rim is suppressed for protected casts. Confirmed non-interruptible casts retain this icon-and-shield indicator even when optional ordinary spell icons are hidden. Unknown state never shows a shield.

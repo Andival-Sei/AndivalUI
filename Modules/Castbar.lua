@@ -9,7 +9,7 @@ local defaults = { width = 280, height = 16, scale = 1, x = 0, y = -170, latency
 local cast, outcome, preview, installed, driver, ui
 local nativeOwned = false
 local warnedQuartz = false
-M.version = "0.5.2"
+M.version = "0.5.3"
 local function Say(s) print("|cffe1bd78Andival UI:|r " .. s) end
 M.Say = Say
 local function ESIVisible() return ns.Integrations.ESI.IsVisible() end

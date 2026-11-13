@@ -53,10 +53,10 @@ local function Create(unit)
     f.fillMask=Mask(b,b:GetStatusBarTexture(),b);f.outerMask=Mask(b,bg)
     local text=f:CreateFontString(nil,"OVERLAY","GameFontHighlightSmall");text:SetPoint("BOTTOMLEFT",b,"TOPLEFT",0,4);text:SetJustifyH("LEFT");text:SetWordWrap(false)
     local timer=f:CreateFontString(nil,"OVERLAY","GameFontHighlightSmall");timer:SetPoint("BOTTOMRIGHT",b,"TOPRIGHT",0,4)
-    local shield=f:CreateTexture(nil,"OVERLAY")
+    local shield=f:CreateTexture(nil,"ARTWORK",nil,-1)
     shield:SetAtlas("ui-castingbar-shield",false)
-    shield:SetSize(20,23)
-    shield:SetPoint("RIGHT",b,"LEFT",-7,0);shield:Hide()
+    shield:SetSize(32,36)
+    shield:Hide()
     local icon=f:CreateTexture(nil,"ARTWORK");icon:SetPoint("RIGHT",b,"LEFT",-7,0);icon:SetSize(20,20);icon:SetTexCoord(.08,.92,.08,.92)
     f.iconFrame=ns.CreateIconFrame(f,icon,20)
     for _,font in ipairs({text,timer}) do font:SetShadowColor(0,0,0,1);font:SetShadowOffset(1,-1) end
@@ -74,8 +74,8 @@ function M.Layout()
     for _,unit in ipairs(units) do
         local f=M.bars[unit];local pos=AndivalUIDB.unitcastbars[unit]
         f:SetScale(d.scale);f:SetSize(d.width*.85,14);f:ClearAllPoints();f:SetPoint("CENTER",UIParent,"CENTER",pos.x/d.scale,pos.y/d.scale)
-        f.text:SetWidth(d.width*.85-40);f.icon:SetShown(d.icon);f.iconFrame:SetShown(d.icon)
-        f.shield:ClearAllPoints();f.shield:SetPoint("RIGHT",d.icon and f.icon or f.bar,"LEFT",d.icon and -10 or -7,0)
+        f.text:SetWidth(d.width*.85-40);f.icon:SetShown(d.icon or f.protected);f.iconFrame:SetShown(d.icon and not f.protected)
+        f.shield:ClearAllPoints();f.shield:SetPoint("CENTER",f.icon,"CENTER",0,-3)
     end
 end
 function M.Refresh(force)
@@ -99,9 +99,13 @@ function M.Refresh(force)
             f.bar:GetStatusBarTexture():SetAtlas(c.channel and "ui-castingbar-filling-channel" or "ui-castingbar-filling-standard",false)
             f.bar:SetValue(progress);f.text:SetText(Label(unit).." · "..c.name);f.timer:SetFormattedText("%.1f",remaining);f.icon:SetTexture(c.icon)
             -- No shield is not a promise of interruptibility: unknown stays neutral.
-            f.shield:SetShown(c.interruptKnown and c.blocked==true)
+            local protected=c.interruptKnown and c.blocked==true
+            f.protected=protected
+            f.shield:SetShown(protected)
+            f.icon:SetShown(d.icon or protected)
+            f.iconFrame:SetShown(d.icon and not protected)
             f:Show()
-        else f:Hide() end
+        else f.protected=false;f:Hide() end
         if unit=="target" then Native(f:IsShown() and not preview) end
     end
 end

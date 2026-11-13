@@ -1,5 +1,7 @@
 local ADDON, ns = ...
 local L = ns.CastbarLogic
+local D = ns.CastbarDuration
+local A = ns.CastbarAppearance
 local M = {}
 ns.Castbar = M
 local ru = GetLocale() == "ruRU"
@@ -9,7 +11,7 @@ local defaults = { width = 280, height = 16, scale = 1, x = 0, y = -170, latency
 local cast, outcome, preview, installed, driver, ui
 local nativeOwners = {}
 local warnedQuartz = false
-M.version = "0.7.1"
+M.version = "0.8.0"
 local function Say(s) print("|cffe1bd78Andival UI:|r " .. s) end
 M.Say = Say
 local function ESIVisible() return ns.Integrations.ESI.IsVisible() end
@@ -48,16 +50,21 @@ end
 local function ReadCast()
     local name, text, icon, startMS, endMS, trade, guid, uninterruptible, spellID = UnitCastingInfo("player")
     local channel = false
-    if not Safe(name) then
+    if not (issecretvalue and issecretvalue(name)) and not name then
         name, text, icon, startMS, endMS, trade, uninterruptible, spellID = UnitChannelInfo("player")
         channel, guid = true, nil
     end
-    name, startMS, endMS, guid = Safe(name), Safe(startMS), Safe(endMS), Safe(guid)
-    -- Restricted data is left to Blizzard, not guessed or compared.
-    if not name or type(startMS) ~= "number" or type(endMS) ~= "number" or endMS <= startMS then return nil end
+    local publicName=Safe(name)
+    startMS, endMS, guid = Safe(startMS), Safe(endMS), Safe(guid)
+    if not publicName and not (issecretvalue and issecretvalue(name)) then return nil end
+    if type(startMS)~="number" or type(endMS)~="number" or endMS<=startMS then
+        local duration=D and D.Read("player",channel)
+        if not duration or not ui or not D.Supported(ui.bar) then return nil end
+        return {name=name,icon=icon,guid=guid,channel=channel,duration=duration,spellID=Safe(spellID),trade=Safe(trade)}
+    end
     local _, _, home, world = GetNetStats()
     return { name = name, icon = icon, startTime = startMS / 1000, endTime = endMS / 1000,
-        guid = guid, channel = channel, latency = math.max(Safe(home) or 0, Safe(world) or 0) / 1000 }
+        guid = guid, channel = channel, spellID=Safe(spellID),trade=Safe(trade), latency = math.max(Safe(home) or 0, Safe(world) or 0) / 1000 }
 end
 local function Texture(parent, layer, color)
     local t = parent:CreateTexture(nil, layer)
@@ -96,6 +103,9 @@ local function CreateUI()
     local delay=f:CreateFontString(nil,"OVERLAY","GameFontHighlightSmall")
     delay:SetPoint("TOPRIGHT",bar,"BOTTOMRIGHT",0,-3);delay:SetTextColor(1,.62,.32)
     f.delay=delay
+    local crafting=f:CreateFontString(nil,"OVERLAY","GameFontHighlightSmall")
+    crafting:SetPoint("TOPLEFT",bar,"BOTTOMLEFT",0,-3);crafting:SetTextColor(.94,.87,.71)
+    f.crafting=crafting
     local icon = f:CreateTexture(nil, "ARTWORK"); icon:SetPoint("RIGHT", bar, "LEFT", -7, 3); icon:SetTexCoord(.08,.92,.08,.92)
     local iconFrame = ns.CreateIconFrame(f,icon,22)
     f.iconFrame=iconFrame
@@ -131,10 +141,11 @@ end
 function M.Layout()
     if not ui then return end
     local d = AndivalUIDB.castbar
+    if A then for _,font in ipairs({ui.name,ui.timer,ui.delay,ui.crafting}) do A.ApplyFont(font,d) end end
     ui:SetScale(d.scale); ui:SetSize(d.width, d.height + 25)
     ui:ClearAllPoints(); ui:SetPoint("CENTER", UIParent, "CENTER", d.x/d.scale, d.y/d.scale)
-    local timerWidth=math.max(80,math.min(130,d.width*.34))
-    ui.bar:SetHeight(d.height);ui.timer:SetWidth(timerWidth);ui.name:SetWidth(d.width-timerWidth-10)
+    local timerWidth,nameWidth=A.TextWidths(d)
+    ui.bar:SetHeight(d.height);ui.timer:SetWidth(math.max(1,timerWidth));ui.name:SetWidth(math.max(1,nameWidth));ui.name:SetShown(nameWidth>0)
     ui.spark:SetHeight(d.height+6)
     ui.icon:SetSize(22, 22)
     ui.finishGlow:SetSize(36, 36)
@@ -147,14 +158,29 @@ local function SetFillAtlas(atlas)
 end
 local function Paint(c, now)
     ui.finishGlow:Hide()
+    local crafting=ns.CastbarCrafting and ns.CastbarCrafting.Label(c.spellID,c.guid,c.trade)
+    ui.crafting:SetText(crafting or "")
+    if c.duration then
+        if not D.Apply(ui.bar,c.duration,c.channel) then return false end
+        if not A then SetFillAtlas(c.channel and "ui-castingbar-filling-channel" or "ui-castingbar-filling-standard") end
+        if A then A.ApplyFill(ui.bar,AndivalUIDB.castbar,c.channel and "channel" or "cast") else ui.bar:SetStatusBarColor(1,1,1) end
+        ui.name:SetText(c.name);ui.displayName=nil
+        ui.icon:SetTexture(c.icon);ui.displayIcon=nil
+        ui.timer:SetText(D.TimerText(c.duration,ru,AndivalUIDB.castbar));ui.displayTimer=nil
+        ui.delay:SetText("");ui.spark:Hide();ui.flow:Hide();ui.latency:Hide()
+        return true
+    end
+    if D then D.Clear(ui.bar) end
     local progress = L.DisplayProgress(c,now,AndivalUIDB.castbar.reducedMotion)
-    SetFillAtlas(c.channel and "ui-castingbar-filling-channel" or "ui-castingbar-filling-standard")
-    ui.bar:SetStatusBarColor(1,1,1); ui.bar:SetValue(progress)
+    if not A then SetFillAtlas(c.channel and "ui-castingbar-filling-channel" or "ui-castingbar-filling-standard") end
+    if A then A.ApplyFill(ui.bar,AndivalUIDB.castbar,c.channel and "channel" or "cast") else ui.bar:SetStatusBarColor(1,1,1) end
+    ui.bar:SetValue(progress)
     local delay,alpha=L.DelayLabel(c,now,ru);ui.delay:SetText(delay);ui.delay:SetAlpha(alpha)
-    if ui.displayName~=c.name then ui.name:SetText(c.name);ui.displayName=c.name end
+    local publicName=Safe(c.name)
+    if not publicName or ui.displayName~=publicName then ui.name:SetText(c.name);ui.displayName=publicName end
     local icon=Safe(c.icon)
     if not icon or ui.displayIcon~=icon then ui.icon:SetTexture(c.icon);ui.displayIcon=icon end
-    local timer=L.TimerText(c.startTime,c.endTime,now,ru)
+    local timer=A and A.TimerText(c.startTime,c.endTime,now,ru,AndivalUIDB.castbar) or L.TimerText(c.startTime,c.endTime,now,ru)
     if ui.displayTimer~=timer then ui.timer:SetText(timer);ui.displayTimer=timer end
     local moving = not AndivalUIDB.castbar.reducedMotion
     ui.flow:SetShown(moving)
@@ -169,24 +195,27 @@ local function Paint(c, now)
     local ratio = L.Clamp((c.latency or 0)/(c.endTime-c.startTime),0,.3)
     ui.latency:SetWidth(math.max(1,AndivalUIDB.castbar.width*ratio))
     ui.latency:SetShown(AndivalUIDB.castbar.latency and not c.channel and ratio > 0)
+    return true
 end
 local function PaintOutcome(success, remaining)
     local reduced = AndivalUIDB.castbar.reducedMotion
-    SetFillAtlas(success and "ui-castingbar-full-standard" or "ui-castingbar-interrupted")
-    ui.spark:Hide(); ui.latency:Hide(); ui.flow:Hide();ui.delay:SetText("")
+    local r,g,b=1,1,1
+    if A then r,g,b=A.ApplyFill(ui.bar,AndivalUIDB.castbar,success and "success" or "interrupted")
+    else SetFillAtlas(success and "ui-castingbar-full-standard" or "ui-castingbar-interrupted") end
+    ui.spark:Hide(); ui.latency:Hide(); ui.flow:Hide();ui.delay:SetText("");ui.crafting:SetText("")
     ui.timer:SetText(success and "" or (ru and "Прервано" or "Interrupted"));ui.displayTimer=nil
     if success then ui.bar:SetValue(1) end
     local t = L.Clamp(remaining,0,1)
     ui.finishGlow:SetShown(success and not reduced)
     if success then
-        ui.bar:SetStatusBarColor(1,1,1)
+        ui.bar:SetStatusBarColor(r,g,b)
         ui.finishGlow:ClearAllPoints(); ui.finishGlow:SetPoint("CENTER",ui.bar,"CENTER",0,0)
         ui.finishGlow:SetSize(AndivalUIDB.castbar.width,AndivalUIDB.castbar.height)
         ui.finishGlow:SetAlpha(.23*math.sin(math.pi*(1-t)))
     else
         -- The interrupted energy darkens in place rather than snapping to a full red bar.
         local light = reduced and 1 or (.25+.75*t)
-        ui.bar:SetStatusBarColor(light,light,light)
+        ui.bar:SetStatusBarColor(r*light,g*light,b*light)
     end
     ui:SetAlpha(reduced and 1 or (success and math.min(1,t*1.65) or t*t))
 end
@@ -195,7 +224,7 @@ local function Refresh(deferClaim)
     if not AndivalUIDB.castbar.enabled or QuartzActive() then
         if not preview then
             local now=GetTime()
-            if cast and now>cast.endTime+.3 then cast=nil end
+            if cast and (cast.duration or now>cast.endTime+.3) then cast=nil end
             if outcome and now>=outcome.untilTime then outcome=nil end
             ui:Hide(); Native(false); return
         end
@@ -209,20 +238,30 @@ local function Refresh(deferClaim)
         if result then if not result.success then ui.bar:SetValue(2/3) end;PaintOutcome(result.success,result.remaining) end
         ui:Show();return
     end
+    if cast and cast.duration and not cast.stopAt and (not cast.lastCheck or now-cast.lastCheck>=.1) then
+        cast.lastCheck=now
+        local liveName
+        if cast.channel then liveName=UnitChannelInfo("player") else liveName=UnitCastingInfo("player") end
+        if not (issecretvalue and issecretvalue(liveName)) and not liveName then cast=nil end
+    end
     if cast and cast.stopAt and now>cast.stopAt then
         local previous=cast;cast=nil
-        if previous.channel and not previous.esiClaimed and not ESIVisible() then
+        if previous.channel and not previous.duration and not previous.esiClaimed and not ESIVisible() then
             local success=previous.stopRequestedAt>=previous.endTime-.1
             local duration=success and .5 or .55
             outcome={untilTime=now+duration,duration=duration,success=success}
         end
-    elseif cast and now>cast.endTime+.3 then cast=nil end
+    elseif cast and not cast.duration and now>cast.endTime+.3 then cast=nil end
     local yield = L.ShouldYield(ESIVisible(), cast)
     if cast then
         cast.yielded = yield
         if not deferClaim then cast.esiClaimed = cast.esiClaimed or yield end
         if yield then ui:Hide(); Native(false); return end
-        outcome = nil; Paint(cast,cast.stopRequestedAt or now); ui:SetAlpha(1); ui:Show(); Native(true)
+        outcome = nil
+        if Paint(cast,cast.stopRequestedAt or now)==false then
+            cast=nil;ui:Hide();Native(false);return
+        end
+        ui:SetAlpha(1); ui:Show(); Native(true)
     elseif outcome and now < outcome.untilTime then
         local t = (outcome.untilTime-now)/outcome.duration
         PaintOutcome(outcome.success,t); ui:Show(); Native(true)
@@ -245,7 +284,7 @@ local function EndCast(event, guid)
     end
     local previous = cast
     cast = nil
-    if previous.esiClaimed or ESIVisible() then outcome = nil; Refresh(); return end
+    if previous.duration or previous.esiClaimed or ESIVisible() then outcome = nil; Refresh(); return end
     local failure = event == "UNIT_SPELLCAST_INTERRUPTED" or event == "UNIT_SPELLCAST_FAILED" or event == "UNIT_SPELLCAST_FAILED_QUIET"
     local success = not failure and (event == "UNIT_SPELLCAST_SUCCEEDED" or (previous.channel and GetTime() >= previous.endTime - .1))
     if failure or success then
@@ -307,7 +346,7 @@ driver:SetScript("OnEvent",function(_,event,unit,guid)
                 cast.guid = cast.guid or Safe(guid)
                 if (event=="UNIT_SPELLCAST_DELAYED" or event=="UNIT_SPELLCAST_CHANNEL_UPDATE") and previous and previous.channel==cast.channel and L.AcceptEnd(previous.guid,cast.guid) then
                     cast.esiClaimed = previous.esiClaimed
-                    L.Retime(previous,cast,GetTime())
+                    if not previous.duration and not cast.duration then L.Retime(previous,cast,GetTime()) end
                 end
             end
             Refresh(true); return

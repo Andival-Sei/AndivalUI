@@ -31,9 +31,9 @@ function ns.CreateIconFrame(parent, icon, size)
 end
 
 -- Profile migration is additive: keep old positions and migrate inherited visuals once.
-local profileUnits={player=true,target=true,targettarget=true}
-local appearanceKeys={"width","height","scale","icon","reducedMotion"}
-local appearanceDefaults={width=280,height=16,scale=1,icon=false,reducedMotion=false}
+local profileUnits={player=true,target=true,targettarget=true,focus=true}
+local appearanceKeys={"width","height","scale","icon","reducedMotion","font","fontSize","texture","castColor","channelColor","timeFormat"}
+local appearanceDefaults={width=280,height=16,scale=1,icon=false,reducedMotion=false,font="native",fontSize=0,texture="native",castColor="native",channelColor="native",timeFormat="elapsed_total"}
 local function NumberOr(value,fallback,lo,hi)
     if type(value)~="number" or value~=value or value==math.huge or value==-math.huge then return fallback end
     if lo then return math.max(lo,math.min(hi,value)) end
@@ -42,6 +42,17 @@ end
 local function BooleanOr(value,fallback)
     if type(value)=="boolean" then return value end
     return fallback
+end
+local function NormalizeAppearance(d)
+    local allowed={font={native=true,chat=true},texture={native=true,smooth=true},
+        castColor={native=true,amber=true,blue=true,teal=true,violet=true,white=true},
+        channelColor={native=true,amber=true,blue=true,teal=true,violet=true,white=true},
+        timeFormat={elapsed_total=true,remaining=true,elapsed=true,hidden=true}}
+    for key,values in pairs(allowed) do
+        if type(d[key])~="string" or not values[d[key]] then d[key]=appearanceDefaults[key] end
+    end
+    d.fontSize=NumberOr(d.fontSize,0)
+    if d.fontSize~=0 then d.fontSize=math.floor(NumberOr(d.fontSize,12,10,18)+.5) end
 end
 local function NormalizeCastbarProfile(profile,previousVersion)
     profile.castbar=type(profile.castbar)=="table" and profile.castbar or {}
@@ -59,10 +70,11 @@ local function NormalizeCastbarProfile(profile,previousVersion)
     player.reducedMotion=BooleanOr(player.reducedMotion,false)
     player.target=BooleanOr(player.target,true)
     player.targettarget=BooleanOr(player.targettarget,true)
-    for i,unit in ipairs({"target","targettarget"}) do
+    NormalizeAppearance(player)
+    for i,unit in ipairs({"target","targettarget","focus"}) do
         local d=type(profile.unitcastbars[unit])=="table" and profile.unitcastbars[unit] or {}
         -- Inherit only missing legacy fields, never malformed fields or later edits.
-        if legacy then
+        if legacy and unit~="focus" then
             if d.width==nil then d.width=player.width*.85 end
             if d.scale==nil then d.scale=player.scale end
             if d.icon==nil then d.icon=player.icon end
@@ -73,10 +85,11 @@ local function NormalizeCastbarProfile(profile,previousVersion)
         d.height=NumberOr(d.height,14,10,32)
         d.scale=NumberOr(d.scale,1,.6,1.6)
         d.x=NumberOr(d.x,0)
-        d.y=NumberOr(d.y,i==1 and -65 or -115)
-        d.enabled=BooleanOr(d.enabled,true)
+        d.y=NumberOr(d.y,i==1 and -65 or (i==2 and -115 or -240))
+        d.enabled=BooleanOr(d.enabled,unit~="focus")
         d.icon=BooleanOr(d.icon,false)
         d.reducedMotion=BooleanOr(d.reducedMotion,false)
+        NormalizeAppearance(d)
         profile.unitcastbars[unit]=d
     end
     profile.castbarProfileVersion=1

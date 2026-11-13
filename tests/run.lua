@@ -71,7 +71,7 @@ local function fire(e,...)
 end
 local function tick(t) time=t; for _,f in ipairs(frames) do if f.scripts.OnUpdate then f.scripts.OnUpdate(f,.02) end end end
 local function load(path) assert(loadfile(path))('AndivalUI',ns) end
-load('Core.lua'); load('Modules/CastbarLogic.lua');load('Modules/CastbarMotion.lua'); load('Integrations/EnhancedSoftInteract.lua'); load('Modules/Castbar.lua');load('Modules/UnitCastbars.lua');load('Settings.lua')
+load('Core.lua'); load('Modules/CastbarLogic.lua');load('Modules/CastbarMotion.lua');load('Modules/CastbarAppearance.lua');load('Modules/CastbarDuration.lua');load('Modules/CastbarCrafting.lua'); load('Integrations/EnhancedSoftInteract.lua'); load('Modules/Castbar.lua');load('Modules/UnitCastbars.lua');load('Settings.lua')
 fire('ADDON_LOADED','AndivalUI')
 local count=0
 local function ok(value,label) assert(value,label); count=count+1; print('PASS '..label) end
@@ -269,4 +269,62 @@ current=nil;fire('UNIT_SPELLCAST_SUCCEEDED','player','fade');ns.Castbar.Preview(
 PlayerCastingBarFrame:Hide();tick(360.1)
 ok(PlayerCastingBarFrame:GetAlpha()==.4,'preview retries pending native restoration after fade hides')
 ns.Castbar.Preview(false)
+-- 0.8: focus, public/secret native duration and conservative fallbacks.
+ns.Castbar.Preview(false);unitCasts={};unitChannels={};current=nil;channel=nil
+local focus=ns.GetCastbarSettings('focus')
+ok(focus.enabled==false and focus.y==-240,'focus is migrated disabled with independent position')
+focus.enabled=true;unitCasts.focus={name='Focus spell',start=400000,finish=405000,guid='focus'};time=401
+FocusFrameSpellBar=new(UIParent);FocusFrameSpellBar:SetAlpha(.7)
+fire('PLAYER_FOCUS_CHANGED')
+ok(AndivalUIFocusCastbar:IsShown() and AndivalUIFocusCastbar.bar.value==.2,'focus uses authoritative casting information')
+ok(FocusFrameSpellBar:GetAlpha()==0,'focus native duplicate hidden only while custom shown')
+unitCasts.focus=nil;fire('PLAYER_FOCUS_CHANGED')
+ok(not AndivalUIFocusCastbar:IsShown() and FocusFrameSpellBar:GetAlpha()==.7,'focus clear restores exact native alpha')
+Enum={StatusBarInterpolation={Immediate=0},StatusBarTimerDirection={ElapsedTime=1,RemainingTime=2}}
+function Frame:SetTimerDuration(object,interpolation,direction) self.nativeObject=object;self.nativeDirection=direction end
+local duration={GetElapsedDuration=function()return restricted end,GetTotalDuration=function()return restricted end}
+UnitCastingDuration=function()return duration end
+UnitChannelDuration=function()return duration end
+unitCasts.focus={name='Hidden timing',start=restricted,finish=restricted,guid='secret-focus'}
+fire('PLAYER_FOCUS_CHANGED')
+ok(AndivalUIFocusCastbar:IsShown() and AndivalUIFocusCastbar.bar.nativeObject==duration,'native duration animates focus without Lua timing arithmetic')
+ok(AndivalUIFocusCastbar.timer.textValue=='','secret duration never invents numeric timer')
+unitCasts.focus=nil;unitChannels.focus={name='Hidden channel',start=restricted,finish=restricted};fire('PLAYER_FOCUS_CHANGED')
+ok(AndivalUIFocusCastbar.bar.nativeDirection==2,'native secret channel uses remaining-time direction')
+duration.GetElapsedDuration=function()return 1.2 end;duration.GetTotalDuration=function()return 5 end
+ns.UnitCastbars.Refresh()
+ok(AndivalUIFocusCastbar.timer.textValue==(rus and '1,2 / 5,0' or '1.2 / 5.0'),'native public durations honor elapsed-total format')
+unitChannels.focus=nil;unitCasts.focus={name='Public again',start=400000,finish=405000,guid='public'};ns.UnitCastbars.Refresh()
+ok(AndivalUIFocusCastbar.bar.andivalDuration==nil and AndivalUIFocusCastbar.bar.value==.2,'ordinary cast clears native timer ownership')
+UnitCastingDuration=function()error('unavailable')end
+unitCasts.focus={name='No duration',start=restricted,finish=restricted,guid='none'};ns.UnitCastbars.Refresh()
+ok(not AndivalUIFocusCastbar:IsShown() and FocusFrameSpellBar:GetAlpha()==.7,'failed duration getter restores native fallback')
+UnitCastingDuration=nil;UnitChannelDuration=nil;unitCasts.focus=nil;focus.enabled=false
+
+local A=ns.CastbarAppearance
+ok(A.FormatDuration(1.2,5,false,{timeFormat='remaining'})=='3.8','remaining timer format')
+ok(A.FormatDuration(1.2,5,true,{timeFormat='elapsed'})=='1,2','elapsed timer localized')
+ok(A.FormatDuration(1.2,5,true,{timeFormat='hidden'})=='','hidden timer format')
+ok(A.FormatDuration(restricted,5,false,{timeFormat='remaining'})=='','appearance formatter rejects secret elapsed')
+local pstyle=ns.GetCastbarSettings('player');local fstyle=ns.GetCastbarSettings('focus')
+pstyle.texture='smooth';pstyle.castColor='blue';pstyle.channelColor='violet';pstyle.font='chat';pstyle.fontSize=14;pstyle.timeFormat='remaining'
+ns.CopyCastbarSettings('player','focus')
+ok(fstyle.texture=='smooth' and fstyle.castColor=='blue' and fstyle.timeFormat=='remaining' and not fstyle.enabled,'appearance copy includes styles but preserves disabled focus')
+pstyle.castColor='teal';ok(fstyle.castColor=='blue','appearance copies remain independent')
+P.Copy('Default','Style');P.Switch('Style');ns.GetCastbarSettings('focus').timeFormat='hidden';P.Switch('Default')
+ok(ns.GetCastbarSettings('focus').timeFormat=='remaining','named profiles preserve independent appearance')
+P.Delete('Style',true);ns.ResetCastbarSettings('player');ns.ResetCastbarSettings('focus')
+current={name='Native player',start=restricted,finish=restricted,guid='native-player'};time=500
+UnitCastingDuration=function()return duration end
+fire('UNIT_SPELLCAST_START','player','native-player')
+ok(AndivalUICastbarFrame:IsShown() and AndivalUICastbarFrame.bar.andivalDuration==duration,'player supports native secret timing')
+ok(not AndivalUICastbarFrame.latency:IsShown() and not AndivalUICastbarFrame.spark:IsShown(),'secret timing hides guessed latency and spark')
+EnhancedSoftInteractHUD.inEditMode=nil;EnhancedSoftInteractHUD:Show();EnhancedSoftInteractHUD.castBar:Show();tick(500.1)
+ok(not AndivalUICastbarFrame:IsShown(),'ESI retains ownership with secret duration')
+EnhancedSoftInteractHUD:Hide();current=nil;fire('UNIT_SPELLCAST_STOP','player','native-player');tick(500.3)
+ok(not AndivalUICastbarFrame:IsShown(),'secret cast stop cannot create invented completion')
+UnitCastingDuration=nil
+
+local tw,nw=A.TextWidths({width=140,fontSize=18,timeFormat='elapsed_total'});ok(tw==140 and nw==0,'large timer takes priority over narrow spell title')
+local ht,hn=A.TextWidths({width=140,timeFormat='hidden'});ok(ht==0 and hn==140,'hidden timer returns full title width')
 print(string.format('%d tests passed',count))

@@ -4,7 +4,7 @@ A small modular interface addon for **WoW Forever (Interface 16001)**.
 
 ## First module: Castbar
 
-A restrained Blizzard-style **player** castbar: native Blizzard backdrop and gold/channel textures, compact text, optional small spell icon, readable name and elapsed / total time, latency zone, short success/interruption feedback, and reduced-motion option. Optional target and target-of-target bars share the rounded native styling. Focus/pet bars are not replaced.
+A restrained Blizzard-style **player** castbar: native Blizzard backdrop and gold/channel textures, compact text, optional small spell icon, readable name and elapsed / total time, latency zone, short success/interruption feedback, and reduced-motion option. Optional target and target-of-target bars share the rounded native styling. An optional focus bar is disabled by default; pet bars are not replaced.
 
 The Enhanced Soft Interact adapter checks the actual visibility of its live interaction bar. When ESI shows gathering or opening progress, Andival UI yields. If ESI is absent, disabled, hidden, or cannot associate the interaction, the regular castbar is the fallback. Preview HUDs do not suppress spells, and an old ESI completion animation does not hide a new spell.
 
@@ -21,7 +21,7 @@ The ESI integration is read-only and currently targets ESI 0.5.8. Leave ESI's ow
 
 ## На русском
 
-`/aui` открывает настройки и предпросмотр. Перетащите полосу, выберите ширину и масштаб, включите/выключите иконку, зону задержки и анимацию. Есть полосы игрока, цели и цели цели. Полосы цели включаются отдельно; в предпросмотре их можно перетаскивать. Полоса питомца не меняется.
+`/aui` открывает настройки и предпросмотр. Перетащите полосу, выберите ширину и масштаб, включите/выключите иконку, зону задержки и анимацию. Есть полосы игрока, цели, цели цели и фокуса (по умолчанию выключен). Полосы цели включаются отдельно; в предпросмотре их можно перетаскивать. Полоса питомца не меняется.
 
 Сначала отключите модуль Player в Quartz и выполните `/reload`. Другие аддоны и их настройки автоматически не меняются. Полоса Enhanced Soft Interact при сборе ресурсов и открытии предметов получает приоритет, только когда она реально видна.
 
@@ -38,10 +38,10 @@ Future modules register independently through `ns.RegisterModule` and use their 
 ## Validation and limits
 
 - Runtime files load in a mocked Lua environment; tests cover casts, channels, stale end events, interruption, visible/hidden/transparent ESI, preview exclusion, fallback and restricted timing.
-- Restricted cast data is not calculated or guessed: the addon yields to Blizzard's native bar.
-- No live-client visual or combat testing has yet been completed. This is **0.7.1, a revised test build**, not a claim of raid-ready compatibility.
+- Restricted timing uses native duration objects when supported. Numeric text appears only for public values; missing support falls back to the native bar. No guaranteed native target-of-target fallback exists.
+- No live-client visual or combat testing has yet been completed. This is **0.8.0, a revised test build**, not a claim of raid-ready compatibility.
 - Actual Blizzard atlas rendering, secure-value behavior, ESI fade timing, and coexistence with other castbar owners need in-game testing.
-- The module does not implement Quartz's mirror timers, GCD, swing timer or focus/pet features.
+- The module does not implement Quartz's mirror timers, GCD, swing timer or pet bar.
 
 ### Tests
 
@@ -133,3 +133,12 @@ The interface automatically follows the WoW client: ruRU uses Russian; enUS/enGB
 - Every profile activation normalizes complete defaults, strict booleans and finite coordinates. Incomplete/invalid saved fields cannot pass nil/NaN/infinity to frame positioning; valid positions and settings remain unchanged.
 
 Tests include reordered events, near-end channel failure, original alpha ownership, missing identities, 240 Hz presentation steps, drag cancellation and incomplete saved profiles in both languages. These are mocked regression tests and actual UI-simulator checks, not live-client combat/performance measurements. Restricted cast data still falls back safely; tick schedules and spell-school colors remain intentionally unimplemented. Target completion effects are still preview-only, not guessed from disappearing casts. The brief result reconciliation cannot guarantee recovery of arbitrarily delayed or absent game events.
+
+## 0.8.0 focus, native durations and appearance
+
+- Focus is a fourth independent unit, disabled by default. It has its own position, appearance and profile settings. Quartz Focus remains authoritative while enabled; native FocusFrameSpellBar alpha is only borrowed while our actual replacement is visible.
+- Secret start/end values can use UnitCastingDuration/UnitChannelDuration and native StatusBar:SetTimerDuration. Lua does not perform arithmetic on secrets. Native direction is elapsed for casts, remaining for channels. Numeric text is shown only when duration getters provide public finite values. Unsupported APIs or failed native application restore fallback. Restricted player casts omit derived spark/latency/light positioning and inferred completion outcomes.
+- Appearance dialog per unit: localized WoW/chat font, automatic or 10–18 px size; native Blizzard or smooth fill; separate cast/channel color presets (native, amber, blue, teal, violet, pale metal); elapsed/total, remaining, elapsed or hidden timer. Colors are decorative, **not spell-school detection**. Existing profiles retain native defaults. Copy/reset includes appearance without changing position or enabled state. Fonts resolve from client-localized font objects; no font files are bundled.
+- A conservative player crafting label shows current operation / requested operations only after observing an explicit multi-craft CraftRecipe/CraftEnchant request and matching trade-cast spell ID and GUID. Successful matching operations advance it; cancellation/failure/close/zone reset it. It is not produced item quantity, a guaranteed completed batch or estimated overall duration. Missing/secret/custom/instant/unmatched requests hide the label rather than guess.
+
+New behavior is tested with mocks and actual UI-simulator rendering. Secret-value enforcement and crafting event ordering require live-client testing; the simulator is not proof of server or combat behavior. No channel tick marks or additional timers were added. School-derived colors remain deferred.

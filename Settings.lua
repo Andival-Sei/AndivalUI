@@ -3,8 +3,8 @@ local ru, M = ns.ru, ns.Castbar
 local panel
 local function T(a,b) return ru and a or b end
 local function Decimal(v) local s=tostring(v);return ru and (s:gsub("%.",",")) or s end
-local units={"player","target","targettarget"}
-local names={player=T("Игрок","Player"),target=T("Цель","Target"),targettarget=T("Цель цели","Target of target")}
+local units={"player","target","targettarget","focus"}
+local names={player=T("Игрок","Player"),target=T("Цель","Target"),targettarget=T("Цель цели","Target of target"),focus=T("Фокус","Focus")}
 function ns.CreateSettings()
     panel=CreateFrame("Frame","AndivalUISettings",UIParent,"BasicFrameTemplateWithInset")
     panel:SetSize(580,570);panel:SetPoint("CENTER");panel:SetFrameStrata("DIALOG")
@@ -32,7 +32,7 @@ function ns.CreateSettings()
     end
     Label(T("Настройки независимы. Перетаскивай полосы в режиме теста.","Independent profiles. Drag bars while testing to position them."),20,-38,540)
     for i,unit in ipairs(units) do
-        tabs[unit]=Button(names[unit],20+(i-1)*180,-64,174,function()
+        tabs[unit]=Button(names[unit],20+(i-1)*135,-64,129,function()
             selected=unit;if source==selected then source=selected=="player" and "target" or "player" end
             RefreshControls()
         end)
@@ -85,7 +85,7 @@ function ns.CreateSettings()
         if M.SetPreviewMode then M.SetPreviewMode(mode) end
         M.Preview(true)
         for id,b in pairs(modeButtons) do b:SetEnabled(id~=mode) end
-        status:SetText(mode=="esi" and T("Тест скрывает нашу полосу, не меняя ESI. Это имитация передачи взаимодействия.","Simulates hiding our bar without changing ESI. No actual interaction is triggered.") or mode=="protected" and T("Щит показан на полосах цели и цели цели. Это демонстрационные данные.","The shield is shown on target and target-of-target bars. Uses sample data.") or T("Демонстрационные данные, не реальный каст. Тики не имитируются.","Sample data, not a live cast. Tick timing is not fabricated."))
+        status:SetText(mode=="esi" and T("Тест скрывает нашу полосу, не меняя ESI. Это имитация передачи взаимодействия.","Simulates hiding our bar without changing ESI. No actual interaction is triggered.") or mode=="protected" and T("Тест щита: цель, цель цели, фокус. Не реальный каст.","Shield preview: target, target-of-target, focus. Sample data.") or T("Демонстрационные данные, не реальный каст. Тики не имитируются.","Sample data, not a live cast. Tick timing is not fabricated."))
     end
     testToggle:SetScript("OnClick",function(self)
         if not CanEdit() then return end
@@ -140,6 +140,48 @@ function ns.CreateSettings()
     end
     panel.SetTestMode=function(mode) if CanEdit() and modeButtons[mode] then StartMode(mode) end end
     panel.RefreshControls=RefreshControls
+    local appearance=CreateFrame("Frame","AndivalUIAppearance",panel,"BasicFrameTemplateWithInset")
+    appearance:SetSize(510,420);appearance:SetPoint("CENTER");appearance:SetFrameStrata("FULLSCREEN_DIALOG");appearance:EnableMouse(true)
+    local appearanceButtons={}
+    local function RefreshAppearance()
+        appearance.TitleText:SetText(T("Оформление · ","Appearance · ")..names[selected])
+        local d=ns.GetCastbarSettings(selected)
+        for key,row in pairs(appearanceButtons) do
+            for _,choice in ipairs(row.choices) do if d[key]==choice[1] then row.button:SetText(choice[2]);break end end
+        end
+    end
+    local function CycleAppearance(key,label,choices,y)
+        local caption=appearance:CreateFontString(nil,"OVERLAY","GameFontHighlightSmall")
+        caption:SetPoint("TOPLEFT",20,y-6);caption:SetWidth(160);caption:SetJustifyH("LEFT");caption:SetText(label)
+        local button=CreateFrame("Button",nil,appearance,"UIPanelButtonTemplate")
+        button:SetSize(285,28);button:SetPoint("TOPLEFT",195,y)
+        button:SetScript("OnClick",function()
+            if not CanEdit() then return end
+            local d=ns.GetCastbarSettings(selected)
+            local index=0
+            for i,choice in ipairs(choices) do if d[key]==choice[1] then index=i;break end end
+            d[key]=choices[index%#choices+1][1];Apply();RefreshAppearance()
+        end)
+        appearanceButtons[key]={button=button,choices=choices}
+    end
+    CycleAppearance("font",T("Шрифт","Font"),{{"native",T("Шрифт WoW","WoW font")},{"chat",T("Шрифт чата","Chat font")}},-62)
+    CycleAppearance("fontSize",T("Размер текста","Font size"),{{0,T("Авто","Automatic")},{10,"10"},{11,"11"},{12,"12"},{14,"14"},{16,"16"},{18,"18"}},-106)
+    CycleAppearance("texture",T("Текстура","Texture"),{{"native",T("Родная Blizzard","Native Blizzard")},{"smooth",T("Ровная заливка","Smooth fill")}},-150)
+    local palette={{"native",T("Родной цвет","Native color")},{"amber",T("Янтарный","Amber")},{"blue",T("Голубой","Blue")},{"teal",T("Бирюзовый","Teal")},{"violet",T("Фиолетовый","Violet")},{"white",T("Светлый металл","Pale metal")}}
+    CycleAppearance("castColor",T("Цвет каста","Cast color"),palette,-194)
+    CycleAppearance("channelColor",T("Цвет ченнелинга","Channel color"),palette,-238)
+    CycleAppearance("timeFormat",T("Формат таймера","Timer format"),{{"elapsed_total",T("Прошло / всего","Elapsed / total")},{"remaining",T("Осталось","Remaining")},{"elapsed",T("Прошло","Elapsed")},{"hidden",T("Скрыт","Hidden")}},-282)
+    local note=appearance:CreateFontString(nil,"OVERLAY","GameFontHighlightSmall")
+    note:SetPoint("TOPLEFT",20,-330);note:SetWidth(460);note:SetJustifyH("LEFT")
+    note:SetText(T("Нажимай для выбора следующего варианта. Цвета декоративные, не определяют школу магии. Шрифты берутся из языка клиента.","Click to cycle choices. Colors are decorative, not spell-school detection. Fonts follow the client language."))
+    local appearanceDone=CreateFrame("Button",nil,appearance,"UIPanelButtonTemplate")
+    appearanceDone:SetSize(135,26);appearanceDone:SetPoint("BOTTOMRIGHT",-20,16);appearanceDone:SetText(T("Готово","Done"))
+    appearanceDone:SetScript("OnClick",function()appearance:Hide()end)
+    appearance:SetScript("OnShow",function()if CanEdit() then RefreshAppearance() end end)
+    appearance:Hide();table.insert(UISpecialFrames,"AndivalUIAppearance")
+    appearance.controls=appearanceButtons;appearance.Refresh=RefreshAppearance
+    Button(T("Оформление…","Appearance…"),205,-525,195,function()appearance:Show()end)
+    panel.ShowAppearance=function()if CanEdit() then appearance:Show()end end
     -- Named profile manager is a separate dialog so the castbar controls stay uncluttered.
     local manager=CreateFrame("Frame","AndivalUIProfiles",panel,"BasicFrameTemplateWithInset")
     manager:SetSize(530,500);manager:SetPoint("CENTER");manager:SetFrameStrata("FULLSCREEN_DIALOG");manager:EnableMouse(true)
@@ -245,7 +287,7 @@ function ns.CreateSettings()
         if not CanEdit() then return end
         ns.InitCastbarSettings();RefreshControls();StartMode(previewMode)
     end)
-    panel:SetScript("OnHide",function() manager:Hide();M.Preview(false) end)
+    panel:SetScript("OnHide",function() appearance:Hide();manager:Hide();M.Preview(false) end)
     panel:RegisterEvent("PLAYER_REGEN_DISABLED")
     panel:SetScript("OnEvent",function() panel:Hide() end)
     panel:Hide();table.insert(UISpecialFrames,"AndivalUISettings")

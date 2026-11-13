@@ -55,7 +55,7 @@ local function Create(unit)
     local timer=f:CreateFontString(nil,"OVERLAY","GameFontHighlightSmall");timer:SetPoint("BOTTOMRIGHT",b,"TOPRIGHT",0,4)
     local shield=f:CreateTexture(nil,"ARTWORK",nil,-1)
     shield:SetAtlas("ui-castingbar-shield",false)
-    shield:SetSize(32,36)
+    shield:SetSize(29,33)
     shield:Hide()
     local icon=f:CreateTexture(nil,"ARTWORK");icon:SetPoint("RIGHT",b,"LEFT",-7,0);icon:SetSize(20,20);icon:SetTexCoord(.08,.92,.08,.92)
     f.iconFrame=ns.CreateIconFrame(f,icon,20)
@@ -75,7 +75,7 @@ function M.Layout()
         local f=M.bars[unit];local pos=AndivalUIDB.unitcastbars[unit]
         f:SetScale(d.scale);f:SetSize(d.width*.85,14);f:ClearAllPoints();f:SetPoint("CENTER",UIParent,"CENTER",pos.x/d.scale,pos.y/d.scale)
         f.text:SetWidth(d.width*.85-40);f.icon:SetShown(d.icon or f.protected);f.iconFrame:SetShown(d.icon and not f.protected)
-        f.shield:ClearAllPoints();f.shield:SetPoint("CENTER",f.icon,"CENTER",0,-3)
+        f.shield:ClearAllPoints();f.shield:SetPoint("CENTER",f.icon,"CENTER",0,-2.5)
     end
 end
 function M.Refresh(force)
@@ -102,6 +102,7 @@ function M.Refresh(force)
             local protected=c.interruptKnown and c.blocked==true
             f.protected=protected
             f.shield:SetShown(protected)
+            f.icon:SetSize(protected and 16 or 20,protected and 16 or 20)
             f.icon:SetShown(d.icon or protected)
             f.iconFrame:SetShown(d.icon and not protected)
             f:Show()

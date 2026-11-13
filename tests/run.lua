@@ -2,6 +2,7 @@ local ns = {}
 local frames = {}
 local Frame = {}
 local function noop() end
+function Frame:SetSize(w,h) self.width=w;self.height=h end
 local function new(parent)
   local f = {parent=parent,shown=true,alpha=1,scripts={},events={}}
   return setmetatable(f,{__index=function(t,k) return Frame[k] or (k:match("^[A-Z]") and noop or nil) end})
@@ -151,4 +152,7 @@ ok(AndivalUITargetCastbar.shield.point[2]==AndivalUITargetCastbar.icon,'shield s
 ok(AndivalUITargetCastbar.shield:GetAtlas()=='ui-castingbar-shield','uses modern native filled shield atlas')
 unitCasts.target.blocked=true;ns.UnitCastbars.Refresh()
 ok(AndivalUITargetCastbar.shield:IsShown() and AndivalUITargetCastbar.icon:IsShown() and not AndivalUITargetCastbar.iconFrame:IsShown(),'protected cast keeps icon inside shield and removes duplicate square rim')
+ok(AndivalUITargetCastbar.icon.width==16 and AndivalUITargetCastbar.shield.width==29,'protected icon fits native shield proportions')
+unitCasts.target.blocked=false;ns.UnitCastbars.Refresh()
+ok(AndivalUITargetCastbar.icon.width==20,'ordinary icon size restored after protected cast')
 print(string.format('%d tests passed',count))

@@ -59,6 +59,13 @@ local function Create(unit)
     shield:Hide()
     local icon=f:CreateTexture(nil,"ARTWORK");icon:SetPoint("RIGHT",b,"LEFT",-7,0);icon:SetSize(20,20);icon:SetTexCoord(.08,.92,.08,.92)
     f.iconFrame=ns.CreateIconFrame(f,icon,20)
+    -- Native metal rim with artwork inset along its silhouette, not a square sticker.
+    local shieldIcon=f:CreateTexture(nil,"ARTWORK")
+    shieldIcon:SetAllPoints(shield);shieldIcon:SetTexCoord(.08,.92,.08,.92);shieldIcon:Hide()
+    local shieldMask=f:CreateMaskTexture()
+    shieldMask:SetTexture("Interface\\AddOns\\AndivalUI\\Media\\ShieldInsetMask","CLAMPTOBLACKADDITIVE","CLAMPTOBLACKADDITIVE")
+    shieldMask:SetAllPoints(shield);shieldIcon:AddMaskTexture(shieldMask)
+    f.shieldIcon,f.shieldMask=shieldIcon,shieldMask
     for _,font in ipairs({text,timer}) do font:SetShadowColor(0,0,0,1);font:SetShadowOffset(1,-1) end
     f.bar,f.text,f.timer,f.shield,f.icon=b,text,timer,shield,icon
     f:SetScript("OnMouseDown",function(self,button) if preview and button=="LeftButton" and not InCombatLockdown() then self:StartMoving() end end)
@@ -74,7 +81,7 @@ function M.Layout()
     for _,unit in ipairs(units) do
         local f=M.bars[unit];local pos=AndivalUIDB.unitcastbars[unit]
         f:SetScale(d.scale);f:SetSize(d.width*.85,14);f:ClearAllPoints();f:SetPoint("CENTER",UIParent,"CENTER",pos.x/d.scale,pos.y/d.scale)
-        f.text:SetWidth(d.width*.85-40);f.icon:SetShown(d.icon or f.protected);f.iconFrame:SetShown(d.icon and not f.protected)
+        f.text:SetWidth(d.width*.85-85);f.icon:SetShown(d.icon and not f.protected);f.iconFrame:SetShown(d.icon and not f.protected)
         f.shield:ClearAllPoints();f.shield:SetPoint("CENTER",f.icon,"CENTER",0,-2.5)
     end
 end
@@ -97,13 +104,13 @@ function M.Refresh(force)
         if c and now<=c.endTime then
             local progress,remaining=L.Progress(c.startTime,c.endTime,now,c.channel)
             f.bar:GetStatusBarTexture():SetAtlas(c.channel and "ui-castingbar-filling-channel" or "ui-castingbar-filling-standard",false)
-            f.bar:SetValue(progress);f.text:SetText(Label(unit).." · "..c.name);f.timer:SetFormattedText("%.1f",remaining);f.icon:SetTexture(c.icon)
+            f.bar:SetValue(progress);f.text:SetText(Label(unit).." · "..c.name);f.timer:SetText(L.TimerText(c.startTime,c.endTime,now,ru));f.icon:SetTexture(c.icon)
             -- No shield is not a promise of interruptibility: unknown stays neutral.
             local protected=c.interruptKnown and c.blocked==true
             f.protected=protected
             f.shield:SetShown(protected)
-            f.icon:SetSize(protected and 16 or 20,protected and 16 or 20)
-            f.icon:SetShown(d.icon or protected)
+            f.shieldIcon:SetTexture(c.icon);f.shieldIcon:SetShown(protected)
+            f.icon:SetShown(d.icon and not protected)
             f.iconFrame:SetShown(d.icon and not protected)
             f:Show()
         else f.protected=false;f:Hide() end

@@ -19,3 +19,10 @@ function L.ShouldYield(esiVisible, cast) return cast ~= nil and not cast.channel
 function L.AcceptEnd(activeGUID, eventGUID)
     return activeGUID == nil or eventGUID == nil or activeGUID == eventGUID
 end
+-- Inputs have already passed the module's secret-value guards.
+function L.TimerText(startTime,endTime,now,ru)
+    local duration=math.max(0,endTime-startTime)
+    local text=string.format("%.1f / %.1f",L.Clamp(now-startTime,0,duration),duration)
+    if ru then text=text:gsub("%.",",") end
+    return text
+end

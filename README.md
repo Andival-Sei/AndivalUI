@@ -4,7 +4,7 @@ A small modular interface addon for **WoW Forever (Interface 16001)**.
 
 ## First module: Castbar
 
-A restrained Blizzard-style **player** castbar: native Blizzard backdrop and gold/channel textures, compact text, optional small spell icon, readable name and remaining time, latency zone, short success/interruption feedback, and reduced-motion option. Optional target and target-of-target bars share the rounded native styling. Focus/pet bars are not replaced.
+A restrained Blizzard-style **player** castbar: native Blizzard backdrop and gold/channel textures, compact text, optional small spell icon, readable name and elapsed / total time, latency zone, short success/interruption feedback, and reduced-motion option. Optional target and target-of-target bars share the rounded native styling. Focus/pet bars are not replaced.
 
 The Enhanced Soft Interact adapter checks the actual visibility of its live interaction bar. When ESI shows gathering or opening progress, Andival UI yields. If ESI is absent, disabled, hidden, or cannot associate the interaction, the regular castbar is the fallback. Preview HUDs do not suppress spells, and an old ESI completion animation does not hide a new spell.
 
@@ -39,7 +39,7 @@ Future modules register independently through `ns.RegisterModule` and use their 
 
 - Runtime files load in a mocked Lua environment; tests cover casts, channels, stale end events, interruption, visible/hidden/transparent ESI, preview exclusion, fallback and restricted timing.
 - Restricted cast data is not calculated or guessed: the addon yields to Blizzard's native bar.
-- No live-client visual or combat testing has yet been completed. This is **0.5.4, a revised test build**, not a claim of raid-ready compatibility.
+- No live-client visual or combat testing has yet been completed. This is **0.5.5, a revised test build**, not a claim of raid-ready compatibility.
 - Actual Blizzard atlas rendering, secure-value behavior, ESI fade timing, and coexistence with other castbar owners need in-game testing.
 - The module does not implement Quartz's mirror timers, GCD, swing timer or focus/pet features.
 
@@ -99,3 +99,9 @@ The native shield now surrounds the spell icon on the left of the bar, as one co
 ## 0.5.4 shield proportions
 
 Protected spells use a 16 px icon inset into the native 29 by 33 px shield. The smaller artwork leaves the metal rim visible rather than covering it; ordinary icons remain 20 px. Native art and existing icon crop are retained, with no custom imitation or extra badge.
+
+## 0.5.5 integrated shield and elapsed timers
+
+Protected spells inset their artwork into the inner shield silhouette using an original antialiased mask, leaving the native Blizzard metal rim visible. This is a deliberate refinement of Blizzard's square-icon-on-shield composition, not an exact copy of its template. The ordinary square icon is hidden for protected casts; the shield is still shown only for confirmed non-interruptible casts.
+
+All active player, target and target-of-target timers now show elapsed / total duration, including channels. Russian clients use decimal commas. Channel fill still drains while elapsed time increases. Restricted timing still falls back safely; no numbers are fabricated. Simulator previews use deterministic sample data, not live combat.

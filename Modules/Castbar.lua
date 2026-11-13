@@ -133,7 +133,7 @@ local function Paint(c, now)
     local progress, remaining = L.Progress(c.startTime, c.endTime, now, c.channel)
     SetFillAtlas(c.channel and "ui-castingbar-filling-channel" or "ui-castingbar-filling-standard")
     ui.bar:SetStatusBarColor(1,1,1); ui.bar:SetValue(progress)
-    ui.name:SetText(c.name); ui.icon:SetTexture(c.icon); ui.timer:SetFormattedText("%.1f", remaining)
+    ui.name:SetText(c.name); ui.icon:SetTexture(c.icon); ui.timer:SetText(L.TimerText(c.startTime,c.endTime,now,ru))
     local moving = not AndivalUIDB.castbar.reducedMotion
     ui.flow:SetShown(moving)
     if moving then

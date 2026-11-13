@@ -164,3 +164,7 @@ Cancellation/interruption fades now take 0.8 seconds with a gentle smoothstep cu
 ## 0.9.1 preserve requested fill artwork
 
 Restores the original 0.8 Blizzard cast/channel/success/interrupted fill atlases. The 0.9 classic gradient change was not requested. Existing texture and color selections remain untouched. The soft internal light and 0.8-second fades remain; the main progress marker is now a compact soft oval, narrower than the bar height rather than a vertical full-height line.
+
+## 0.9.2 original front marker
+
+Restores the exact 0.8 front marker: `ui-castingbar-pip`, width 8 and height bar height + 6. The original 0.8 fill artwork stays unchanged. Only the trailing interior glow uses the soft edge-free texture; the front intentionally remains a visible vertical marker. Smooth ending transitions are retained.

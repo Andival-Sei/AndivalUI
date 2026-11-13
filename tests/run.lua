@@ -405,8 +405,8 @@ ok(settings:IsShown() and not settings:GetPreviewState().positioning and not And
 settings.stoppedMoving=false;settings:Hide();ok(settings.stoppedMoving,'closing settings stops titlebar drag')
 local nav=settings.navigation.player;nav:SetPoint('TOPLEFT',UIParent,'TOPLEFT',0,0);settings:Show();settings.SelectPage('player')
 local _,_,_,_,navY=nav:GetPoint();ok(navY==-124,'page layout restores sidebar coordinates after external repositioning')
-ok(AndivalUICastbarFrame.flow.texturePath:find('SoftGlow.tga',1,true) and AndivalUICastbarFrame.spark.texturePath:find('SoftGlow.tga',1,true),'moving glow and primary spark use edge-free original texture')
-ok(AndivalUICastbarFrame.spark:GetHeight()<AndivalUIDB.castbar.height,'primary sparkle stays compact inside bar height')
+ok(AndivalUICastbarFrame.flow.texturePath:find('SoftGlow.tga',1,true),'trailing glow retains edge-free original texture')
+ok(AndivalUICastbarFrame.spark.atlas=='ui-castingbar-pip' and AndivalUICastbarFrame.spark:GetWidth()==8 and AndivalUICastbarFrame.spark:GetHeight()==AndivalUIDB.castbar.height+6,'primary spark exactly restores 0.8 atlas and proportions')
 settings:Hide()
 -- Neutral/confirmed fades are cosmetic and never retain a changed unit.
 settings:Hide();ns.Castbar.Preview(false);current=nil;channel=nil;unitCasts={};unitChannels={}

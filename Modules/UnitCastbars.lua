@@ -8,6 +8,8 @@ local nativeOwners = {}
 local previewStart=0
 local units = {"target", "targettarget", "focus"}
 local snapshots,lastSnapshot={},-1
+local fades={}
+local fadeDuration=.8
 local function Safe(v) if issecretvalue and issecretvalue(v) then return nil end return v end
 local function Label(unit)
     if unit=="focus" then return ru and "Фокус" or "Focus" end
@@ -104,6 +106,33 @@ function M.Layout()
         f.shield:ClearAllPoints();f.shield:SetPoint("CENTER",f.icon,"CENTER",0,-2.5)
     end
 end
+local function SameUnit(unit,c)
+    local guid=Safe(UnitGUID and UnitGUID(unit))
+    return c and c.unitGUID and guid and guid==c.unitGUID and Safe(UnitExists(unit))==true
+end
+local function StartFade(unit,c,now)
+    local f=M.bars[unit]
+    if not c or not f:IsShown() or not SameUnit(unit,c) then return nil end
+    if c.duration and ns.CastbarDuration.Freeze and not ns.CastbarDuration.Freeze(f.bar) then return nil end
+    local fade={cast=c,at=now,kind=c.terminal}
+    fades[unit]=fade
+    return fade
+end
+local function PaintFade(unit,fade,now,d)
+    if d.reducedMotion or not SameUnit(unit,fade.cast) then return false end
+    local t=L.Clamp((now-fade.at)/fadeDuration,0,1)
+    if t>=1 then return false end
+    local f=M.bars[unit]
+    local kind=fade.kind
+    local state=kind=="success" and "success" or kind=="interrupted" and "interrupted" or (fade.cast.channel and "channel" or "cast")
+    ns.CastbarAppearance.ApplyFill(f.bar,d,state)
+    -- Unknown disappearance holds the last rendered fill; it never becomes success.
+    if kind=="success" and not fade.cast.duration then f.bar:SetValue(1) end
+    f.timer:SetText(kind=="interrupted" and (ru and "Прервано" or "Interrupted") or "");f.displayTimer=nil
+    f.delay:SetText("")
+    f:SetAlpha(1-t*t*(3-2*t));f:Show()
+    return true
+end
 function M.Refresh(force)
     if not ready then return end
     local now=GetTime()
@@ -115,7 +144,16 @@ function M.Refresh(force)
         if sample then
             local previous=snapshots[unit]
             local current=enabled and Read(unit) or nil
-            if previous and current and not previous.duration and not current.duration and not previous.secretName and not current.secretName and current.unitGUID and previous.unitGUID==current.unitGUID and previous.name==current.name and previous.spellID==current.spellID and ((current.castGUID and previous.castGUID==current.castGUID) or previous.startTime==current.startTime) then L.Retime(previous,current,now) end
+            if current and not current.duration and now>current.endTime then current=nil end
+            local same=previous and current and current.unitGUID and previous.unitGUID==current.unitGUID and previous.channel==current.channel and
+                ((current.castGUID and previous.castGUID==current.castGUID) or (not previous.duration and not current.duration and previous.startTime==current.startTime))
+            if same then
+                current.terminal=previous.terminal
+                if not current.castGUID then current.castGUID=previous.castGUID end
+                if not previous.duration and not current.duration then L.Retime(previous,current,now) end
+            end
+            if current then fades[unit]=nil
+            elseif previous and enabled and not preview and not QuartzUnit(unit) then StartFade(unit,previous,now) end
             snapshots[unit]=current
         end
         local c=enabled and snapshots[unit] or nil
@@ -124,7 +162,8 @@ function M.Refresh(force)
             local mode=ns.Castbar.previewMode or "sequence"
             c,demoResult=L.PreviewCast(mode,now,previewStart,unit,ru)
         end
-        if QuartzUnit(unit) and not preview then c=nil end
+        if QuartzUnit(unit) and not preview then c=nil;fades[unit]=nil end
+        if not enabled or preview then fades[unit]=nil end
         if c and c.duration and not ns.CastbarDuration.Supported(f.bar) then c=nil end
         if c and (c.duration or preview or now<=c.endTime) then
             local progress=not c.duration and L.DisplayProgress(c,now,d.reducedMotion)
@@ -139,7 +178,7 @@ function M.Refresh(force)
             end
             if c and c.secretName then f.text:SetText(c.name);f.displayText=nil
             elseif c then
-                local text=Label(unit).." · "..c.name
+                local text=Label(unit).." - "..c.name
                 if f.displayText~=text then f.text:SetText(text);f.displayText=text end
             end
             local timer=c and (c.duration and ns.CastbarDuration.TimerText(c.duration,ru,d) or ns.CastbarAppearance.TimerText(c.startTime,c.endTime,now,ru,d)) or ""
@@ -154,26 +193,51 @@ function M.Refresh(force)
             f.icon:SetShown(d.icon and not protected)
             f.iconFrame:SetShown(d.icon and not protected)
             if demoResult then
-                ns.CastbarAppearance.ApplyFill(f.bar,d,demoResult.success and "success" or "interrupted")
+                ns.CastbarAppearance.ApplyFill(f.bar,d,demoResult.success==nil and (c.channel and "channel" or "cast") or (demoResult.success and "success" or "interrupted"))
                 if demoResult.success then f.bar:SetValue(1) else f.bar:SetValue(2/3) end
-                f.timer:SetText(demoResult.success and "" or (ru and "Прервано" or "Interrupted"));f.displayTimer=nil
-                f.delay:SetText("");f:SetAlpha(d.reducedMotion and 1 or demoResult.remaining)
+                f.timer:SetText(demoResult.success~=false and "" or (ru and "Прервано" or "Interrupted"));f.displayTimer=nil
+                local r=demoResult.remaining;f.delay:SetText("");f:SetAlpha(d.reducedMotion and 1 or r*r*(3-2*r))
             end
             f:SetShown(not f.durationFailed)
-        else f.protected=false;ns.CastbarDuration.Clear(f.bar);f:Hide() end
+        else
+            local fading=fades[unit] and PaintFade(unit,fades[unit],now,d)
+            if not fading then fades[unit]=nil;f.protected=false;ns.CastbarDuration.Clear(f.bar);f:Hide() end
+        end
         Native(unit,f:IsShown() and not preview)
     end
 end
 function M.Preview(on)
-    preview=on and true or false;previewStart=GetTime()
+    preview=on and true or false;previewStart=GetTime();fades={}
+    snapshots={}
     for _,f in pairs(M.bars) do if not preview then f:StopMovingOrSizing() end;f:EnableMouse(preview) end
     M.Refresh()
 end
-M.Test={Read=Read}
+M.Test={Read=Read,GetFade=function(unit)return fades[unit]end}
 local driver=CreateFrame("Frame")
 driver:RegisterEvent("ADDON_LOADED");driver:RegisterEvent("PLAYER_TARGET_CHANGED");driver:RegisterEvent("PLAYER_FOCUS_CHANGED");driver:RegisterEvent("UNIT_TARGET")
-driver:SetScript("OnEvent",function(_,event,name)
+for _,event in ipairs({"UNIT_SPELLCAST_START","UNIT_SPELLCAST_CHANNEL_START","UNIT_SPELLCAST_SUCCEEDED","UNIT_SPELLCAST_INTERRUPTED","UNIT_SPELLCAST_FAILED","UNIT_SPELLCAST_FAILED_QUIET"}) do driver:RegisterEvent(event) end
+driver:SetScript("OnEvent",function(_,event,name,eventGUID)
     if event=="UNIT_TARGET" and Safe(name)~="target" then return end
+    if event:find("UNIT_SPELLCAST_",1,true) then
+        local unit=Safe(name)
+        if unit~="target" and unit~="targettarget" and unit~="focus" then return end
+        local guid=Safe(eventGUID)
+        if event=="UNIT_SPELLCAST_START" or event=="UNIT_SPELLCAST_CHANNEL_START" then
+            fades[unit]=nil;snapshots[unit]=nil;M.Refresh()
+            local c=snapshots[unit]
+            if c and SameUnit(unit,c) then c.castGUID=c.castGUID or guid end
+        else
+            local c=snapshots[unit] or (fades[unit] and fades[unit].cast)
+            if c and guid and c.castGUID and guid==c.castGUID and SameUnit(unit,c) then
+                local kind
+                if event=="UNIT_SPELLCAST_SUCCEEDED" then if not c.channel then kind="success" end
+                else kind="interrupted" end
+                if kind then c.terminal=kind;if fades[unit] then fades[unit].kind=kind end end
+            end
+            M.Refresh()
+        end
+        return
+    end
     if event=="ADDON_LOADED" then
         if name~=ADDON then return end
         AndivalUIDB.unitcastbars=AndivalUIDB.unitcastbars or {}
@@ -185,7 +249,7 @@ driver:SetScript("OnEvent",function(_,event,name)
         end
         ns.InitCastbarSettings();ready=true;M.Layout()
     end
-    if event=="PLAYER_TARGET_CHANGED" or event=="PLAYER_FOCUS_CHANGED" or event=="UNIT_TARGET" then snapshots={} end
+    if event=="PLAYER_TARGET_CHANGED" or event=="PLAYER_FOCUS_CHANGED" or event=="UNIT_TARGET" then snapshots={};fades={} end
     M.Refresh()
 end)
 -- targettarget often has no dedicated cast events. Re-read unit identity and casts;

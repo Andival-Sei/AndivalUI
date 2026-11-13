@@ -11,7 +11,7 @@ local defaults = { width = 280, height = 16, scale = 1, x = 0, y = -170, latency
 local cast, outcome, preview, installed, driver, ui
 local nativeOwners = {}
 local warnedQuartz = false
-M.version = "0.8.0"
+M.version = "0.9.0"
 local function Say(s) print("|cffe1bd78Andival UI:|r " .. s) end
 M.Say = Say
 local function ESIVisible() return ns.Integrations.ESI.IsVisible() end
@@ -110,19 +110,19 @@ local function CreateUI()
     local iconFrame = ns.CreateIconFrame(f,icon,22)
     f.iconFrame=iconFrame
     local spark = bar:CreateTexture(nil, "OVERLAY")
-    spark:SetAtlas("ui-castingbar-pip"); spark:SetSize(8, 22)
+    spark:SetTexture("Interface\\AddOns\\"..ADDON.."\\Media\\SoftGlow.tga");spark:SetBlendMode("ADD");spark:SetVertexColor(1,.95,.8,.85);spark:SetSize(12,20)
     local latency = Texture(bar, "OVERLAY", {.8,.22,.16,.27}); latency:SetPoint("TOPRIGHT"); latency:SetPoint("BOTTOMRIGHT")
     latency:AddMaskTexture(fillMask)
     -- Soft moving illumination is clipped to both the rounded outline and current fill.
     local flow = bar:CreateTexture(nil, "OVERLAY")
-    flow:SetAtlas("cast_standard_pipglow", false); flow:SetBlendMode("ADD")
+    flow:SetTexture("Interface\\AddOns\\"..ADDON.."\\Media\\SoftGlow.tga");flow:SetBlendMode("ADD")
     local progressMask = bar:CreateMaskTexture(nil, "ARTWORK")
     progressMask:SetTexture("Interface\\Buttons\\WHITE8X8")
     progressMask:SetAllPoints(bar:GetStatusBarTexture())
     flow:AddMaskTexture(fillMask); flow:AddMaskTexture(progressMask)
     local previewLabel = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
     previewLabel:SetPoint("TOP", bar, "BOTTOM", 0, -7)
-    previewLabel:SetText(ru and "ПРЕДПРОСМОТР · перетащи полосу" or "PREVIEW · drag to position")
+    previewLabel:SetText(ru and "ПРЕДПРОСМОТР - перетащи полосу" or "PREVIEW - drag to position")
     f.flow, f.progressMask = flow, progressMask
     f.fillMask, f.outerMask = fillMask, outerMask
     f.bar, f.name, f.timer, f.icon, f.finishGlow, f.spark, f.latency, f.previewLabel = bar, name, timer, icon, finishGlow, spark, latency, previewLabel
@@ -146,7 +146,7 @@ function M.Layout()
     ui:ClearAllPoints(); ui:SetPoint("CENTER", UIParent, "CENTER", d.x/d.scale, d.y/d.scale)
     local timerWidth,nameWidth=A.TextWidths(d)
     ui.bar:SetHeight(d.height);ui.timer:SetWidth(math.max(1,timerWidth));ui.name:SetWidth(math.max(1,nameWidth));ui.name:SetShown(nameWidth>0)
-    ui.spark:SetHeight(d.height+6)
+    ui.spark:SetHeight(d.height+4)
     ui.icon:SetSize(22, 22)
     ui.finishGlow:SetSize(36, 36)
     ui.icon:SetShown(d.icon); ui.iconFrame:SetShown(d.icon)
@@ -186,7 +186,7 @@ local function Paint(c, now)
     ui.flow:SetShown(moving)
     if moving then
         local phase = ((now-c.startTime)*.45) % 1
-        ui.flow:SetSize(58,AndivalUIDB.castbar.height*2.5)
+        ui.flow:SetSize(74,AndivalUIDB.castbar.height*2)
         ui.flow:ClearAllPoints(); ui.flow:SetPoint("CENTER",ui.bar,"LEFT",AndivalUIDB.castbar.width*progress*phase,0)
         ui.flow:SetAlpha((.12 + .035*math.sin((now-c.startTime)*3))*math.sin(math.pi*phase)^2)
     end
@@ -197,13 +197,14 @@ local function Paint(c, now)
     ui.latency:SetShown(AndivalUIDB.castbar.latency and not c.channel and ratio > 0)
     return true
 end
-local function PaintOutcome(success, remaining)
+local function PaintOutcome(success, remaining, channel)
     local reduced = AndivalUIDB.castbar.reducedMotion
     local r,g,b=1,1,1
-    if A then r,g,b=A.ApplyFill(ui.bar,AndivalUIDB.castbar,success and "success" or "interrupted")
-    else SetFillAtlas(success and "ui-castingbar-full-standard" or "ui-castingbar-interrupted") end
+    local state=success==nil and (channel and "channel" or "cast") or (success and "success" or "interrupted")
+    if A then r,g,b=A.ApplyFill(ui.bar,AndivalUIDB.castbar,state)
+    else SetFillAtlas(state=="cast" and "ui-castingbar-filling-standard" or state=="channel" and "ui-castingbar-filling-channel" or success and "ui-castingbar-full-standard" or "ui-castingbar-interrupted") end
     ui.spark:Hide(); ui.latency:Hide(); ui.flow:Hide();ui.delay:SetText("");ui.crafting:SetText("")
-    ui.timer:SetText(success and "" or (ru and "Прервано" or "Interrupted"));ui.displayTimer=nil
+    ui.timer:SetText(success~=false and "" or (ru and "Прервано" or "Interrupted"));ui.displayTimer=nil
     if success then ui.bar:SetValue(1) end
     local t = L.Clamp(remaining,0,1)
     ui.finishGlow:SetShown(success and not reduced)
@@ -213,11 +214,21 @@ local function PaintOutcome(success, remaining)
         ui.finishGlow:SetSize(AndivalUIDB.castbar.width,AndivalUIDB.castbar.height)
         ui.finishGlow:SetAlpha(.23*math.sin(math.pi*(1-t)))
     else
-        -- The interrupted energy darkens in place rather than snapping to a full red bar.
-        local light = reduced and 1 or (.25+.75*t)
+        -- Smoothstep keeps the initial loss of opacity gentle, without a second
+        -- rapid luminosity drop multiplying it into an abrupt disappearance.
+        local light = reduced and 1 or (.9+.1*t*t*(3-2*t))
         ui.bar:SetStatusBarColor(r*light,g*light,b*light)
     end
-    ui:SetAlpha(reduced and 1 or (success and math.min(1,t*1.65) or t*t))
+    ui:SetAlpha(reduced and 1 or (success and math.min(1,t*1.65) or t*t*(3-2*t)))
+end
+local function BeginOutcome(previous, success, now)
+    if previous.esiClaimed or ESIVisible() then outcome=nil;return end
+    -- Keep the native range as well as its value: native timer bars are not
+    -- necessarily normalized. If the UI sinks reject freezing, hide instead
+    -- of displaying a guessed or accidentally full progress bar.
+    if previous.duration and (not D or not D.Freeze(ui.bar)) then outcome=nil;return end
+    local duration=success and .5 or .8
+    outcome={untilTime=now+duration,duration=duration,success=success,channel=previous.channel}
 end
 local function Refresh(deferClaim)
     if not installed then return end
@@ -242,16 +253,16 @@ local function Refresh(deferClaim)
         cast.lastCheck=now
         local liveName
         if cast.channel then liveName=UnitChannelInfo("player") else liveName=UnitCastingInfo("player") end
-        if not (issecretvalue and issecretvalue(liveName)) and not liveName then cast=nil end
+        if not (issecretvalue and issecretvalue(liveName)) and not liveName then cast.stopAt=now+.08;cast.stopRequestedAt=now end
     end
     if cast and cast.stopAt and now>cast.stopAt then
         local previous=cast;cast=nil
-        if previous.channel and not previous.duration and not previous.esiClaimed and not ESIVisible() then
-            local success=previous.stopRequestedAt>=previous.endTime-.1
-            local duration=success and .5 or .55
-            outcome={untilTime=now+duration,duration=duration,success=success}
-        end
-    elseif cast and not cast.duration and now>cast.endTime+.3 then cast=nil end
+        local success
+        if previous.channel and not previous.duration and previous.stopRequestedAt>=previous.endTime-.1 then success=true end
+        BeginOutcome(previous,success,now)
+    elseif cast and not cast.duration and now>cast.endTime+.3 then
+        local previous=cast;cast=nil;BeginOutcome(previous,nil,now)
+    end
     local yield = L.ShouldYield(ESIVisible(), cast)
     if cast then
         cast.yielded = yield
@@ -264,7 +275,7 @@ local function Refresh(deferClaim)
         ui:SetAlpha(1); ui:Show(); Native(true)
     elseif outcome and now < outcome.untilTime then
         local t = (outcome.untilTime-now)/outcome.duration
-        PaintOutcome(outcome.success,t); ui:Show(); Native(true)
+        PaintOutcome(outcome.success,t,outcome.channel); ui:Show(); Native(true)
     else
         outcome = nil; ui:Hide(); Native(false)
     end
@@ -284,13 +295,15 @@ local function EndCast(event, guid)
     end
     local previous = cast
     cast = nil
-    if previous.duration or previous.esiClaimed or ESIVisible() then outcome = nil; Refresh(); return end
+    if previous.esiClaimed or ESIVisible() then outcome = nil; Refresh(); return end
     local failure = event == "UNIT_SPELLCAST_INTERRUPTED" or event == "UNIT_SPELLCAST_FAILED" or event == "UNIT_SPELLCAST_FAILED_QUIET"
-    local success = not failure and (event == "UNIT_SPELLCAST_SUCCEEDED" or (previous.channel and GetTime() >= previous.endTime - .1))
-    if failure or success then
-        local duration = failure and .55 or .5
-        outcome = {untilTime=GetTime()+duration,duration=duration,success=success}
-    end
+    local success = not failure and (event == "UNIT_SPELLCAST_SUCCEEDED" or (previous.channel and not previous.duration and GetTime() >= previous.endTime - .1))
+    -- Restricted snapshots receive no inferred completion. Explicit failure is
+    -- still meaningful, but never turn opaque timing into a full success fill.
+    if previous.duration and not failure then success=nil end
+    if failure then BeginOutcome(previous,false,GetTime())
+    elseif success then BeginOutcome(previous,true,GetTime())
+    else BeginOutcome(previous,nil,GetTime()) end
     Refresh()
 end
 function M.Preview(on)

@@ -23,6 +23,7 @@ end
 function D.Apply(bar, object, channel)
     if not object or not D.Supported(bar) then return false end
     if bar.andivalDuration==object and bar.andivalDurationChannel==channel then return true end
+    if bar.andivalFrozenDuration then D.Clear(bar) end
     local direction=channel and Enum.StatusBarTimerDirection.RemainingTime or Enum.StatusBarTimerDirection.ElapsedTime
     local ok=pcall(bar.SetTimerDuration,bar,object,Enum.StatusBarInterpolation.Immediate,direction)
     if not ok then D.Clear(bar);return false end
@@ -30,11 +31,30 @@ function D.Apply(bar, object, channel)
     return true
 end
 function D.Clear(bar)
-    if bar.andivalDuration then
-        bar.andivalDuration,bar.andivalDurationChannel=nil,nil
+    if bar.andivalDuration or bar.andivalFrozenDuration then
+        bar.andivalDuration,bar.andivalDurationChannel,bar.andivalFrozenDuration=nil,nil,nil
         bar:SetMinMaxValues(0,1)
         bar:SetValue(0)
     end
+end
+-- Native timers may use a seconds range rather than 0..1. Preserve all three
+-- values through allowed UI sinks, without inspecting or normalizing secrets.
+function D.Freeze(bar)
+    if not bar then return false end
+    if bar.andivalFrozenDuration then return true end
+    if not bar.andivalDuration then return true end
+    local ok=pcall(function()
+        local minimum,maximum=bar:GetMinMaxValues()
+        local value=bar:GetValue()
+        D.Clear(bar)
+        -- Track the non-normalized range before setters so cleanup also works
+        -- if either native sink rejects the operation on a different client.
+        bar.andivalFrozenDuration=true
+        bar:SetMinMaxValues(minimum,maximum)
+        bar:SetValue(value)
+    end)
+    if not ok then pcall(D.Clear,bar);return false end
+    return true
 end
 function D.TimerText(object, ru, settings)
     if not object or not object.GetElapsedDuration or not object.GetTotalDuration then return "" end

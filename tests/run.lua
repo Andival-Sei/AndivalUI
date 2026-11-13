@@ -4,6 +4,21 @@ local Frame = {}
 local function noop() end
 function Frame:StopMovingOrSizing() self.stoppedMoving=true end
 function Frame:SetSize(w,h) self.width=w;self.height=h end
+function Frame:SetWidth(v) self.width=v end
+function Frame:SetHeight(v) self.height=v end
+function Frame:GetWidth() return self.width or 1920 end
+function Frame:GetHeight() return self.height or 1080 end
+function Frame:SetParent(v) self.parent=v end
+function Frame:GetParent() return self.parent end
+function Frame:GetEffectiveScale() return (self.scale or 1)*(self.parent and self.parent:GetEffectiveScale() or 1) end
+function Frame:EnableMouse(v) self.mouseEnabled=v end
+function Frame:IsMouseEnabled() return self.mouseEnabled end
+function Frame:SetEnabled(v) self.enabled=v end
+function Frame:IsEnabled() return self.enabled~=false end
+function Frame:GetFrameLevel() return self.frameLevel or 1 end
+function Frame:SetFrameLevel(v) self.frameLevel=v end
+function Frame:GetPoint() return table.unpack(self.point or {}) end
+
 local function new(parent)
   local f = {parent=parent,shown=true,alpha=1,scripts={},events={}}
   return setmetatable(f,{__index=function(t,k) return Frame[k] or (k:match("^[A-Z]") and noop or nil) end})
@@ -19,6 +34,9 @@ function Frame:SetShown(v) if v then self:Show() else self:Hide() end end
 function Frame:IsShown() return self.shown end
 function Frame:IsVisible() return self.shown and (not self.parent or self.parent:IsVisible()) end
 function Frame:GetAlpha() return self.alpha end
+function Frame:SetMinMaxValues(a,b) self.minimum=a;self.maximum=b end
+function Frame:GetMinMaxValues() return self.minimum or 0,self.maximum or 1 end
+function Frame:GetValue() return self.value or 0 end
 function Frame:GetEffectiveAlpha() return self.alpha * (self.parent and self.parent:GetEffectiveAlpha() or 1) end
 function Frame:SetAlpha(v) self.alpha=v end
 function Frame:SetStatusBarTexture(path)
@@ -28,8 +46,22 @@ end
 function Frame:GetStatusBarTexture() return self.statusbarTexture end
 function Frame:SetAtlas(atlas) self.atlas = atlas end
 function Frame:GetAtlas() return self.atlas end
+function Frame:SetTexture(path) self.texturePath=path;self.atlas=nil end
+function Frame:SetStatusBarColor(r,g,b) self.color={r,g,b} end
 function Frame:SetValue(v) self.value=v; if self.scripts.OnValueChanged then self.scripts.OnValueChanged(self,v) end end
 function Frame:SetText(v) self.textValue=v end
+function Frame:GetText() return self.textValue or '' end
+function Frame:SetTitle(v) if self.TitleText then self.TitleText:SetText(v) end end
+function Frame:SetVerticalScroll(v) self.verticalScroll=v end
+function Frame:GetVerticalScroll() return self.verticalScroll or 0 end
+function Frame:SetupMenu(fn) self.menuGenerator=fn end
+function Frame:GenerateMenu()
+  if not self.menuGenerator then return end
+  local root={entries={}}
+  function root:CreateRadio(label,selected,callback,value) local item={label=label,selected=selected,callback=callback,value=value};function item:AddInitializer(fn) self.initializer=fn end;self.entries[#self.entries+1]=item;return item end
+  function root:SetScrollMode() end
+  self.menuGenerator(self,root);self.menuItems=root.entries
+end
 function Frame:SetFormattedText(f,v) self.textValue=string.format(f,v) end
 function Frame:CreateMaskTexture() return new(self) end
 function Frame:AddMaskTexture(mask) self.mask=mask end
@@ -44,8 +76,9 @@ function Frame:GetChecked() return self.checked end
 function CreateFrame(kind,name,parent,template)
   local f=new(parent); frames[#frames+1]=f
   if name then _G[name]=f end
-  if template=='BasicFrameTemplateWithInset' then f.TitleText=new(f) end
+  if template=='BasicFrameTemplateWithInset' or template=='PortraitFrameTemplate' then f.TitleText=new(f) end
   if template=='UICheckButtonTemplate' then f.text=new(f) end
+  if template=='InsetFrameTemplate' then f.Bg=new(f) end
   if template=='OptionsSliderTemplate' then f.Text=new(f);f.Low=new(f);f.High=new(f) end
   return f
 end
@@ -83,7 +116,7 @@ ok(AndivalUICastbarFrame:IsShown(),'spell is displayed')
 ok(AndivalUICastbarFrame.bar:GetStatusBarTexture().mask==AndivalUICastbarFrame.fillMask,'rounded fill mask attached')
 ok(AndivalUICastbarFrame.latency.mask==AndivalUICastbarFrame.fillMask,'latency follows same rounded silhouette')
 ok(AndivalUICastbarFrame.finishGlow.mask==AndivalUICastbarFrame.fillMask,'success bloom clipped to rounded silhouette')
-ok(AndivalUICastbarFrame.bar:GetStatusBarTexture():GetAtlas()=='ui-castingbar-filling-standard','native atlas explicitly assigned')
+ok(AndivalUICastbarFrame.bar.color[2]==.78,'clean classic fill retains warm cast color')
 ok(PlayerCastingBarFrame:GetAlpha()==0,'native duplicate hidden')
 local p=AndivalUICastbarFrame.bar.value; ok(p>.32 and p<.34,'accurate cast progress')
 fire('UNIT_SPELLCAST_STOP','player','old'); ok(AndivalUICastbarFrame:IsShown(),'stale stop ignored')
@@ -111,7 +144,7 @@ EnhancedSoftInteractHUD.castBar:Hide();fire('UNIT_SPELLCAST_DELAYED','player','g
 fire('UNIT_SPELLCAST_SUCCEEDED','player','g');ok(not AndivalUICastbarFrame:IsShown(),'delayed cast retains ESI completion ownership')
 current={name='Spell',start=107000,finish=110000,guid='h'};time=107;fire('UNIT_SPELLCAST_START','player','h');tick(108)
 fire('UNIT_SPELLCAST_STOP','player','h');current=nil;fire('UNIT_SPELLCAST_SUCCEEDED','player','h')
-ok(AndivalUICastbarFrame.bar:GetStatusBarTexture():GetAtlas()=='ui-castingbar-full-standard','STOP before success still renders completion')
+ok(AndivalUICastbarFrame.bar.color[2]==.86,'STOP before success still renders completion')
 channel={name='Channel',start=109000,finish=113000};time=109;fire('UNIT_SPELLCAST_CHANNEL_START','player','chan')
 fire('UNIT_SPELLCAST_INTERRUPTED','player','h');tick(110)
 ok(AndivalUICastbarFrame.bar.value==.75,'old spell event cannot end new channel')
@@ -128,7 +161,7 @@ AndivalUIDB.castbar.reducedMotion=false;current=nil;fire('UNIT_SPELLCAST_SUCCEED
 ok(AndivalUICastbarFrame.finishGlow:IsShown() and AndivalUICastbarFrame.finishGlow:GetAlpha()>0,'success blooms gently before fading')
 current={name='Interrupted',start=122000,finish=125000,guid='extinguish'};time=122;fire('UNIT_SPELLCAST_START','player','extinguish');tick(123);current=nil;fire('UNIT_SPELLCAST_INTERRUPTED','player','extinguish');tick(123.25)
 ok(not AndivalUICastbarFrame.finishGlow:IsShown() and not AndivalUICastbarFrame.flow:IsShown(),'interruption extinguishes all light')
-ok(AndivalUICastbarFrame:GetAlpha()<.4,'interruption fades rapidly without full-bar success')
+ok(AndivalUICastbarFrame:GetAlpha()>.6 and AndivalUICastbarFrame:GetAlpha()<.9,'interruption fades gently without full-bar success')
 time=130;current=nil;channel=nil
 unitCasts.target={name='Fireball',start=130000,finish=133000,blocked=false};fire('PLAYER_TARGET_CHANGED');ns.UnitCastbars.Refresh()
 ok(AndivalUITargetCastbar:IsShown(),'target cast displayed')
@@ -138,7 +171,7 @@ unitCasts.target.blocked=restricted;ns.UnitCastbars.Refresh();ok(not AndivalUITa
 unitCasts.target.start=restricted;ns.UnitCastbars.Refresh();ok(not AndivalUITargetCastbar:IsShown(),'restricted target timing hides custom bar')
 unitCasts.target=nil;unitChannels.targettarget={name='Beam',start=130000,finish=134000,blocked=false};time=131;ns.UnitCastbars.Refresh()
 ok(AndivalUITargetTargetCastbar.bar.value==.75,'target-of-target channel drains')
-ok(AndivalUITargetTargetCastbar.bar:GetStatusBarTexture():GetAtlas()=='ui-castingbar-filling-channel','channel uses distinct native texture')
+ok(AndivalUITargetTargetCastbar.bar.color[2]==.88,'channel uses distinct green color')
 unitChannels.targettarget=nil;fire('UNIT_TARGET','target');ok(not AndivalUITargetTargetCastbar:IsShown(),'target-of-target change clears stale bar')
 AndivalUIDB.unitcastbars.target.enabled=false;unitCasts.target={name='Disabled',start=131000,finish=134000};ns.UnitCastbars.Refresh();ok(not AndivalUITargetCastbar:IsShown(),'target toggle respected')
 AndivalUIDB.unitcastbars.target.enabled=true;ns.UnitCastbars.Preview(true);ok(AndivalUITargetCastbar:IsShown() and AndivalUITargetTargetCastbar:IsShown(),'unit previews display both bars');ns.UnitCastbars.Preview(false)
@@ -200,7 +233,7 @@ ns.Castbar.SetPreviewMode('interrupted');ns.Castbar.Preview(true);time=time+2.3;
 ok(AndivalUICastbarFrame.bar.value==2/3,'explicit interruption preview freezes fill')
 ns.Castbar.Preview(false);ns.Castbar.SetPreviewMode('sequence')
 local rus=GetLocale()=='ruRU'
-ok(AndivalUISettings.TitleText.textValue==(rus and 'Andival UI · Полосы заклинаний' or 'Andival UI · Castbars'),'settings title follows client locale')
+ok(AndivalUISettings.TitleText.textValue==(rus and 'Andival UI - Полосы заклинаний' or 'Andival UI - Castbars'),'settings title follows client locale')
 local expected=rus and {cast='Обычный каст',channel='Ченнелинг',delayed='Задержка',success='Завершение',interrupted='Прерывание',protected='Со щитом',esi='Передача ESI',sequence='Все по кругу'} or {cast='Cast',channel='Channel',delayed='Delay',success='Success',interrupted='Interrupted',protected='Protected',esi='ESI handoff',sequence='Cycle all'}
 for mode,text in pairs(expected) do ok(AndivalUISettings.modeButtons[mode].textValue==text,'localized mode '..mode) end
 local P=ns.Profiles
@@ -248,18 +281,18 @@ ns.Castbar.Preview(true)
 ok(PlayerCastingBarFrame:GetAlpha()==.4 and GamepadPlayerCastingBarFrame:GetAlpha()==.35,'preview restores exact preexisting native alpha')
 ns.Castbar.Preview(false)
 fire('UNIT_SPELLCAST_INTERRUPTED','player',nil)
-ok(AndivalUICastbarFrame:IsShown() and AndivalUICastbarFrame.bar:GetStatusBarTexture():GetAtlas()=='ui-castingbar-filling-standard','unidentified terminal cannot end live spell')
+ok(AndivalUICastbarFrame:IsShown() and AndivalUICastbarFrame.bar.color[2]==.78,'unidentified terminal cannot end live spell')
 local oldProgress=AndivalUICastbarFrame.bar.value;time=300.004
 for _,frame in ipairs(frames) do if frame.scripts.OnUpdate then frame.scripts.OnUpdate(frame,.004) end end
 ok(AndivalUICastbarFrame.bar.value>oldProgress,'presentation updates on a 240Hz frame')
 current=nil;channel={name='Late interrupt',start=310000,finish=313000};time=310;fire('UNIT_SPELLCAST_CHANNEL_START','player','late');time=312.95;channel=nil;fire('UNIT_SPELLCAST_INTERRUPTED','player','late')
-ok(AndivalUICastbarFrame.bar:GetStatusBarTexture():GetAtlas()=='ui-castingbar-interrupted','near-end channel interruption never becomes success')
+ok(AndivalUICastbarFrame.bar.color[2]==.24,'near-end channel interruption never becomes success')
 channel={name='Stop order',start=320000,finish=323000};time=320;fire('UNIT_SPELLCAST_CHANNEL_START','player','stoporder');time=322.95;channel=nil;fire('UNIT_SPELLCAST_CHANNEL_STOP','player','stoporder');fire('UNIT_SPELLCAST_FAILED','player','stoporder')
-ok(AndivalUICastbarFrame.bar:GetStatusBarTexture():GetAtlas()=='ui-castingbar-interrupted','channel STOP before explicit failure is reconciled')
+ok(AndivalUICastbarFrame.bar.color[2]==.24,'channel STOP before explicit failure is reconciled')
 channel={name='Natural',start=330000,finish=333000};time=330;fire('UNIT_SPELLCAST_CHANNEL_START','player','natural');time=333;channel=nil;fire('UNIT_SPELLCAST_CHANNEL_STOP','player','natural');tick(333.09)
-ok(AndivalUICastbarFrame.bar:GetStatusBarTexture():GetAtlas()=='ui-castingbar-full-standard','natural channel stop completes after reconciliation')
+ok(AndivalUICastbarFrame.bar.color[2]==.86,'natural channel stop completes after reconciliation')
 current={name='Quiet',start=340000,finish=343000,guid='quiet'};time=340;fire('UNIT_SPELLCAST_START','player','quiet');current=nil;fire('UNIT_SPELLCAST_FAILED_QUIET','player','quiet')
-ok(AndivalUICastbarFrame.bar:GetStatusBarTexture():GetAtlas()=='ui-castingbar-interrupted','quiet failure is still a failure')
+ok(AndivalUICastbarFrame.bar.color[2]==.24,'quiet failure is still a failure')
 ns.Castbar.Preview(true);AndivalUICastbarFrame.stoppedMoving=false;AndivalUITargetCastbar.stoppedMoving=false;ns.Castbar.Preview(false)
 ok(AndivalUICastbarFrame.stoppedMoving and AndivalUITargetCastbar.stoppedMoving,'closing preview always stops dragging')
 local readsBefore=castReads;fire('UNIT_TARGET','raid1')
@@ -327,4 +360,92 @@ UnitCastingDuration=nil
 
 local tw,nw=A.TextWidths({width=140,fontSize=18,timeFormat='elapsed_total'});ok(tw==140 and nw==0,'large timer takes priority over narrow spell title')
 local ht,hn=A.TextWidths({width=140,timeFormat='hidden'});ok(ht==0 and hn==140,'hidden timer returns full title width')
+-- Categorized settings: temporary preview placement must never become saved layout.
+local settings=AndivalUISettings
+local pos={};for _,unit in ipairs({'player','target','targettarget','focus'})do local d=ns.GetCastbarSettings(unit);pos[unit]={x=d.x,y=d.y,scale=d.scale}end
+settings:Show();settings.SelectUnit('player');settings.SetTestMode('cast')
+ok(settings:GetPreviewState().docked and AndivalUICastbarFrame:GetParent()==AndivalUIPreviewDock,'selected actual preview is docked in settings')
+ok(not AndivalUITargetCastbar:GetParent():IsShown() and not AndivalUICastbarFrame:IsMouseEnabled(),'other preview bars staged hidden and dock cannot drag')
+ns.GetCastbarSettings('target').enabled=true;settings.SelectUnit('target');settings.SelectTab('appearance')
+ok(AndivalUITargetCastbar:GetParent()==AndivalUIPreviewDock and not settings.controls.latency.control:IsEnabled(),'unit switch docks selected bar and disables player-only latency')
+local colorDrop=AndivalUIAppearance.controls.castColor.button;colorDrop:GenerateMenu()
+local selectedBlue=false;for _,item in ipairs(colorDrop.menuItems or {})do if item.value=='blue'then item.callback(item.value);selectedBlue=true end end
+ok(selectedBlue and ns.GetCastbarSettings('target').castColor=='blue' and ns.GetCastbarSettings('player').castColor~='blue','native choice menu writes only selected unit')
+settings:Hide()
+ok(AndivalUICastbarFrame:GetParent()==UIParent and AndivalUITargetCastbar:GetParent()==UIParent and not settings:GetPreviewState().docked,'closing settings restores runtime parents')
+local preserved=true;for _,unit in ipairs({'player','target','targettarget','focus'})do local d=ns.GetCastbarSettings(unit);preserved=preserved and d.x==pos[unit].x and d.y==pos[unit].y and d.scale==pos[unit].scale end
+ok(preserved,'docking and choices preserve saved positions and scale')
+settings:Show();settings.SetPreviewVisible(false)
+ok(not settings:GetPreviewState().docked and AndivalUITargetCastbar:GetParent()==UIParent,'disabling preview restores runtime placement')
+settings.SetPreviewVisible(true);settings.ShowProfiles()
+ok(not settings:GetPreviewState().docked and AndivalUICastbarFrame:GetParent()==UIParent,'profiles page has no hidden docked castbars')
+local function Press(parent,label)
+ for _,f in ipairs(frames)do if f.parent==parent and f.textValue==label and f.scripts.OnClick then f.scripts.OnClick(f);return true end end
+ return false
+end
+AndivalUIProfiles.nameBox:SetText('UI test')
+ok(Press(AndivalUIProfiles,rus and 'Создать из базового' or 'New from default') and ns.Profiles.Current()=='UI test','integrated profile creation selects new profile')
+ok(not settings:GetPreviewState().docked and not AndivalUICastbarFrame:IsMouseEnabled(),'profile change does not restart hidden preview')
+ns.Profiles.Switch('Default');ns.Profiles.Delete('UI test',true);settings.SelectUnit('player');settings.SetPreviewVisible(true)
+settings.BeginPositioning()
+ok(not settings:IsShown() and settings:GetPreviewState().positioning and AndivalUIPositionToolbar:IsShown() and AndivalUICastbarFrame:GetParent()==UIParent and AndivalUICastbarFrame:IsMouseEnabled(),'explicit positioning restores game anchors and drag')
+settings.EndPositioning(true)
+ok(settings:IsShown() and not settings:GetPreviewState().positioning and settings:GetPreviewState().docked,'finishing positioning returns to dock')
+settings.BeginPositioning();AndivalUIPositionToolbar:Hide()
+ok(not settings:GetPreviewState().positioning and not settings:IsShown() and not AndivalUICastbarFrame:IsMouseEnabled(),'Escape from positioning exits preview safely')
+settings:Show();UIParent:SetSize(800,600);fire('DISPLAY_SIZE_CHANGED')
+ok(settings:GetScale()*900<=776.01 and settings:GetScale()*650<=576.01,'settings scales within smaller logical screen')
+UIParent:SetSize(1920,1080);fire('DISPLAY_SIZE_CHANGED');settings.BeginPositioning()
+InCombatLockdown=function()return true end;fire('PLAYER_REGEN_DISABLED')
+ok(not settings:IsShown() and not AndivalUIPositionToolbar:IsShown() and not settings:GetPreviewState().docked and AndivalUICastbarFrame:GetParent()==UIParent and not AndivalUICastbarFrame:IsMouseEnabled(),'combat closes dock and positioning without hiding runtime frames')
+InCombatLockdown=normalCombat
+
+settings:Show();settings.BeginPositioning();SlashCmdList.ANDIVALUI('')
+ok(settings:IsShown() and not settings:GetPreviewState().positioning and not AndivalUIPositionToolbar:IsShown() and settings:GetPreviewState().docked,'slash reopening position mode restores a single docked settings mode')
+settings.stoppedMoving=false;settings:Hide();ok(settings.stoppedMoving,'closing settings stops titlebar drag')
+local nav=settings.navigation.player;nav:SetPoint('TOPLEFT',UIParent,'TOPLEFT',0,0);settings:Show();settings.SelectPage('player')
+local _,_,_,_,navY=nav:GetPoint();ok(navY==-124,'page layout restores sidebar coordinates after external repositioning')
+ok(AndivalUICastbarFrame.flow.texturePath:find('SoftGlow.tga',1,true) and AndivalUICastbarFrame.spark.texturePath:find('SoftGlow.tga',1,true),'moving glow and primary spark use edge-free original texture')
+settings:Hide()
+-- Neutral/confirmed fades are cosmetic and never retain a changed unit.
+settings:Hide();ns.Castbar.Preview(false);current=nil;channel=nil;unitCasts={};unitChannels={}
+local identities={target='unit-A',targettarget='unit-B',focus='unit-C'}
+local oldUnitExists=UnitExists
+UnitExists=function(unit)return unit=='player' or identities[unit]~=nil end
+UnitGUID=function(unit)return identities[unit]end
+for _,unit in ipairs({'target','targettarget','focus'})do ns.GetCastbarSettings(unit).enabled=true;ns.GetCastbarSettings(unit).reducedMotion=false;ns.GetCastbarSettings(unit).castColor='native';ns.GetCastbarSettings(unit).channelColor='native' end
+unitCasts.target={name='Fading target',start=700000,finish=703000,guid='fade-target'};time=700;fire('PLAYER_TARGET_CHANGED');tick(701)
+local held=AndivalUITargetCastbar.bar.value;unitCasts.target=nil;tick(701.1);tick(701.5)
+ok(AndivalUITargetCastbar:IsShown() and AndivalUITargetCastbar:GetAlpha()>.45 and AndivalUITargetCastbar:GetAlpha()<.55,'unknown target disappearance gets gentle neutral fade')
+ok(AndivalUITargetCastbar.bar.value==held and AndivalUITargetCastbar.timer.textValue=='' and AndivalUITargetCastbar.bar.color[2]==.78,'unknown target ending preserves fill and never invents success')
+unitCasts.target={name='Replacement',start=701500,finish=704500,guid='new-target'};time=701.55;fire('UNIT_SPELLCAST_START','target','new-target')
+ok(AndivalUITargetCastbar:GetAlpha()==1 and AndivalUITargetCastbar.text.textValue:find('Replacement',1,true),'new target cast immediately replaces fade')
+unitCasts.target=nil;fire('UNIT_SPELLCAST_INTERRUPTED','target','fade-target');tick(701.6)
+ok(AndivalUITargetCastbar.timer.textValue=='','stale failure cannot label replacement cast interrupted')
+identities.target='different-target';fire('PLAYER_TARGET_CHANGED')
+ok(not AndivalUITargetCastbar:IsShown(),'target identity change immediately discards old fade')
+unitCasts.targettarget={name='ToT',start=710000,finish=713000,guid='tot'};time=710;fire('UNIT_TARGET','target');tick(711);unitCasts.targettarget=nil;tick(711.1);tick(711.4)
+ok(AndivalUITargetTargetCastbar:IsShown() and AndivalUITargetTargetCastbar:GetAlpha()<1,'target-of-target supports neutral fade')
+identities.targettarget=nil;tick(711.5);ok(not AndivalUITargetTargetCastbar:IsShown(),'lost target-of-target never leaves stale fade')
+unitCasts.focus={name='Focus interrupt',start=720000,finish=723000,guid='focus-fail'};time=720;fire('PLAYER_FOCUS_CHANGED');tick(721);unitCasts.focus=nil;fire('UNIT_SPELLCAST_INTERRUPTED','focus','focus-fail')
+ok(AndivalUIFocusCastbar.timer.textValue==(rus and 'Прервано' or 'Interrupted') and AndivalUIFocusCastbar.bar.color[2]==.24,'matching focus interruption gets confirmed red fade')
+tick(721.81);ok(not AndivalUIFocusCastbar:IsShown(),'unit fade ends after eight tenths')
+unitCasts.target={name='Success',start=730000,finish=733000,guid='target-success'};time=730;fire('PLAYER_TARGET_CHANGED');tick(732);unitCasts.target=nil;fire('UNIT_SPELLCAST_SUCCEEDED','target','target-success')
+ok(AndivalUITargetCastbar.bar.value==1 and AndivalUITargetCastbar.bar.color[2]==.86,'matching success is distinct from neutral disappearance')
+ns.GetCastbarSettings('target').reducedMotion=true;tick(732.1);ok(not AndivalUITargetCastbar:IsShown(),'reduced motion skips unit fade')
+ns.GetCastbarSettings('target').reducedMotion=false
+current={name='Cancelled player',start=740000,finish=743000,guid='cancel-player'};time=740;fire('UNIT_SPELLCAST_START','player','cancel-player');tick(741);local playerHeld=AndivalUICastbarFrame.bar.value;current=nil;fire('UNIT_SPELLCAST_STOP','player','cancel-player');tick(741.09);tick(741.4)
+ok(AndivalUICastbarFrame:IsShown() and AndivalUICastbarFrame:GetAlpha()>.5 and AndivalUICastbarFrame.bar.value==playerHeld and AndivalUICastbarFrame.timer.textValue=='','plain player cancellation fades neutrally without forcing completion')
+current={name='Immediate new',start=741400,finish=744400,guid='immediate'};fire('UNIT_SPELLCAST_START','player','immediate')
+ok(AndivalUICastbarFrame:GetAlpha()==1 and AndivalUICastbarFrame.name.textValue=='Immediate new','new player spell never waits for cancellation fade')
+current=nil;fire('UNIT_SPELLCAST_INTERRUPTED','player','immediate');tick(742.3)
+ok(not AndivalUICastbarFrame:IsShown(),'player fade expires after eight tenths')
+UnitExists=oldUnitExists;UnitGUID=nil
+
+settings:Show();settings.contentScroll:SetHeight(200);settings.SetContentScroll(999)
+ok(settings.contentScroll:GetVerticalScroll()==210,'real content scrolling is clamped to visible range')
+settings.SetContentScroll(-9);ok(settings.contentScroll:GetVerticalScroll()==0,'scroll cannot move before content start');settings:Hide()
+local nativeFreeze=CreateFrame('StatusBar');nativeFreeze.andivalDuration={};nativeFreeze:SetMinMaxValues(0,5);nativeFreeze:SetValue(2)
+ok(ns.CastbarDuration.Freeze(nativeFreeze) and nativeFreeze.maximum==5 and nativeFreeze.value==2,'native fade preserves original range instead of clamping to full')
+ns.CastbarDuration.Clear(nativeFreeze);ok(nativeFreeze.maximum==1 and nativeFreeze.value==0,'next ordinary cast resets frozen native range')
 print(string.format('%d tests passed',count))

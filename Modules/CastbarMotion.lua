@@ -29,7 +29,7 @@ function L.DelayLabel(c,now,ru)
 end
 function L.PreviewCast(mode,now,origin,unit,ru)
     if mode=="sequence" then
-        local modes={"cast","channel","delayed","success","interrupted","protected","esi"}
+        local modes={"cast","channel","delayed","success","interrupted","protected","esi","cancelled"}
         local step=math.floor((now-origin)/4)
         mode=modes[step%#modes+1];origin=origin+step*4
     end
@@ -42,8 +42,13 @@ function L.PreviewCast(mode,now,origin,unit,ru)
         c.endTime=c.endTime+.3;L.Retime(old,c,c.startTime+1)
     end
     if mode=='esi' then return nil end
-    if mode=='success' or mode=='interrupted' then
-        if age>=2 then return c,{success=mode=='success',remaining=L.Clamp((2.55-age)/.55,0,1)} end
+    if mode=='success' or mode=='interrupted' or mode=='cancelled' then
+        if age>=2 then
+            local outcome
+            if mode=='success' then outcome=true elseif mode=='interrupted' then outcome=false end
+            local duration=outcome and .5 or .8
+            return c,{success=outcome,remaining=L.Clamp((2+duration-age)/duration,0,1)}
+        end
     end
     if age>3.6 then return nil end
     return c

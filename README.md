@@ -15,7 +15,7 @@ Copy the `AndivalUI` addon folder into `World of Warcraft/_forever_/Interface/Ad
 1. Enable Andival UI in the addon list.
 2. Disable **Quartz's Player module** (or Quartz entirely) and reload. Andival UI intentionally stays out of the way while that module is active. Other Quartz modules can remain.
 3. Disable any other replacement for the **player** castbar (for example a separately enabled Enhance QoL castbar). This addon never changes another addon's settings.
-4. `/aui` or `/acast` opens the settings and live preview. Drag the preview to position it. Escape/Done ends preview. `/aui status` reports ESI/Quartz detection.
+4. `/aui` or `/acast` opens categorized settings with a selected-bar preview. Use Preview → Position bars in game to drag actual preview positions. Escape/Done exits positioning. `/aui status` reports ESI/Quartz detection.
 
 The ESI integration is read-only and currently targets ESI 0.5.8. Leave ESI's own default-bar hiding enabled if you want it to hide Blizzard's bar during interaction. No ESI code, fonts, or artwork is distributed here.
 
@@ -39,7 +39,7 @@ Future modules register independently through `ns.RegisterModule` and use their 
 
 - Runtime files load in a mocked Lua environment; tests cover casts, channels, stale end events, interruption, visible/hidden/transparent ESI, preview exclusion, fallback and restricted timing.
 - Restricted timing uses native duration objects when supported. Numeric text appears only for public values; missing support falls back to the native bar. No guaranteed native target-of-target fallback exists.
-- No live-client visual or combat testing has yet been completed. This is **0.8.0, a revised test build**, not a claim of raid-ready compatibility.
+- No live-client visual or combat testing has yet been completed. This is **0.9.0, a revised test build**, not a claim of raid-ready compatibility.
 - Actual Blizzard atlas rendering, secure-value behavior, ESI fade timing, and coexistence with other castbar owners need in-game testing.
 - The module does not implement Quartz's mirror timers, GCD, swing timer or pet bar.
 
@@ -142,3 +142,21 @@ Tests include reordered events, near-end channel failure, original alpha ownersh
 - A conservative player crafting label shows current operation / requested operations only after observing an explicit multi-craft CraftRecipe/CraftEnchant request and matching trade-cast spell ID and GUID. Successful matching operations advance it; cancellation/failure/close/zone reset it. It is not produced item quantity, a guaranteed completed batch or estimated overall duration. Missing/secret/custom/instant/unmatched requests hide the label rather than guess.
 
 New behavior is tested with mocks and actual UI-simulator rendering. Secret-value enforcement and crafting event ordering require live-client testing; the simulator is not proof of server or combat behavior. No channel tick marks or additional timers were added. School-derived colors remain deferred.
+
+## 0.9.0 categorized native settings
+
+The original settings window now has an Overview, individual unit categories and an integrated Profiles page. Unit pages separate General, Appearance and Preview. Native radio dropdown menus expose choices directly instead of cycling through them. The 900 by 650 window scales down to fit the available logical screen.
+
+A selected-bar preview is temporarily docked inside settings; other preview bars are parked in an invisible parent. This never saves preview anchors or scale into the user's profile. Disabling preview, closing settings, entering combat or opening Profiles restores all original parents and runtime layout. To reposition bars in the game, explicitly choose Position bars in game; a small Done toolbar ends that mode. Reopening settings while positioning exits the placement mode first.
+
+All existing appearance, per-unit settings, test states, copying/resetting and named profile operations remain available in Russian and English. Default profile deletion/rename restrictions and explicit delete confirmation are preserved. UI structure references installed Platynator, Queston Forever and Polestar patterns; their code, assets and settings are not copied or changed. ASCII separators avoid missing-glyph boxes observed with the user's client font.
+
+Regression tests exercise menu selections, profile actions, preview parenting, reopening/closing, combat, positioning and smaller-screen scaling. Actual simulator captures validate layout; no interactive live-game UI test is claimed. If preview works but real casts do not, use `/aui status`: an active Quartz Player module deliberately suppresses our real player bar. Dominos Cast is a separate optional addon and is not automatically disabled by Andival UI.
+
+The default fill now uses Blizzard's classic statusbar gradient instead of the modern diagonal-pattern fill atlas, removing the bright stripes reported in the live client. Warm cast, green channel, red interruption and selected custom colors remain distinct; masks and profile positions are unchanged. The flat-fill option remains available.
+
+The moving light and main cast-front spark now use original analytic `Media/SoftGlow.tga`, whose alpha and slope reach zero at every boundary. This removes the hard trailing edge of the stretched native pip glow; the front remains a separate compact, softly blended marker. `scripts/make_soft_glow.py` regenerates and validates this asset. Reduced motion still disables both effects.
+
+The final settings skin follows the user's Happy Camper reference through Blizzard's portrait-frame template, an addon-owned spell icon, warm native leather artwork, gold section dividers and a real scrolling content area. No Happy Camper branding/code/assets are bundled. Content scrolls while preview/footer stay fixed; shorter screens reduce window height before reducing scale.
+
+Cancellation/interruption fades now take 0.8 seconds with a gentle smoothstep curve. Unknown player cancellation keeps its last fill and original color without success/failure text. Target, target-of-target and focus receive the same neutral fade only while a public GUID confirms the same unit is still selected. A matching public cast GUID plus explicit success/failure event can color a confirmed outcome; channel SUCCEEDED is not treated as completion. Missing/restricted identity, a changed/lost unit, disabled module or competing Quartz owner clears immediately. New casts replace fading states immediately; target polling remains bounded to 50 ms when no usable unit event arrives. Restricted native fill is frozen using native value/range sinks without Lua arithmetic. ESI-owned interactions still get no duplicate outcome effects. Reduced motion skips unit fades. Preview includes a separate Cancelled / unknown state.

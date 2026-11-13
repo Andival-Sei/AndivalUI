@@ -4,6 +4,7 @@ ns.UnitCastbars = M
 ns.RegisterModule("UnitCastbars", M)
 local L, ru = ns.CastbarLogic, GetLocale()=="ruRU"
 local ready, preview, owned = false, false, false
+local previewStart=0
 local nativeAlpha=1
 local units = {"target", "targettarget"}
 local snapshots,lastSnapshot={},-1
@@ -28,16 +29,17 @@ local function QuartzTarget()
 end
 local function Read(unit)
     if not Safe(UnitExists(unit)) then return nil end
-    local name,_,icon,startMS,endMS,_,_,blocked = UnitCastingInfo(unit)
+    local name,_,icon,startMS,endMS,_,castGUID,blocked,spellID = UnitCastingInfo(unit)
     local channel=false
     if not Safe(name) then
-        name,_,icon,startMS,endMS,_,blocked = UnitChannelInfo(unit)
+        name,_,icon,startMS,endMS,_,blocked,spellID = UnitChannelInfo(unit)
+        castGUID=nil
         channel=true
     end
     name,startMS,endMS,blocked=Safe(name),Safe(startMS),Safe(endMS),Safe(blocked)
     if type(name)~="string" or type(startMS)~="number" or type(endMS)~="number" or endMS<=startMS then return nil end
     return {name=name,icon=icon,startTime=startMS/1000,endTime=endMS/1000,channel=channel,blocked=blocked,
-        interruptKnown=type(blocked)=="boolean"}
+        interruptKnown=type(blocked)=="boolean",unitGUID=Safe(UnitGUID and UnitGUID(unit)),castGUID=Safe(castGUID),spellID=Safe(spellID)}
 end
 local function Mask(parent,texture,anchor)
     local m=parent:CreateMaskTexture(nil,"ARTWORK")
@@ -53,6 +55,8 @@ local function Create(unit)
     f.fillMask=Mask(b,b:GetStatusBarTexture(),b);f.outerMask=Mask(b,bg)
     local text=f:CreateFontString(nil,"OVERLAY","GameFontHighlightSmall");text:SetPoint("BOTTOMLEFT",b,"TOPLEFT",0,4);text:SetJustifyH("LEFT");text:SetWordWrap(false)
     local timer=f:CreateFontString(nil,"OVERLAY","GameFontHighlightSmall");timer:SetPoint("BOTTOMRIGHT",b,"TOPRIGHT",0,4)
+    local delay=f:CreateFontString(nil,"OVERLAY","GameFontHighlightSmall")
+    delay:SetPoint("TOPRIGHT",b,"BOTTOMRIGHT",0,-3);delay:SetTextColor(1,.62,.32);f.delay=delay
     local shield=f:CreateTexture(nil,"ARTWORK",nil,-1)
     shield:SetAtlas("ui-castingbar-shield",false)
     shield:SetSize(29,33)
@@ -77,32 +81,39 @@ local function Create(unit)
 end
 function M.Layout()
     if not ready then return end
-    local d=AndivalUIDB.castbar
     for _,unit in ipairs(units) do
+        local d=ns.GetCastbarSettings(unit)
         local f=M.bars[unit];local pos=AndivalUIDB.unitcastbars[unit]
-        f:SetScale(d.scale);f:SetSize(d.width*.85,14);f:ClearAllPoints();f:SetPoint("CENTER",UIParent,"CENTER",pos.x/d.scale,pos.y/d.scale)
-        f.text:SetWidth(d.width*.85-85);f.icon:SetShown(d.icon and not f.protected);f.iconFrame:SetShown(d.icon and not f.protected)
+        f:SetScale(d.scale);f:SetSize(d.width,d.height);f:ClearAllPoints();f:SetPoint("CENTER",UIParent,"CENTER",pos.x/d.scale,pos.y/d.scale)
+        f.text:SetWidth(d.width-85);f.icon:SetShown(d.icon and not f.protected);f.iconFrame:SetShown(d.icon and not f.protected)
         f.shield:ClearAllPoints();f.shield:SetPoint("CENTER",f.icon,"CENTER",0,-2.5)
     end
 end
 function M.Refresh(force)
     if not ready then return end
-    local d=AndivalUIDB.castbar;local now=GetTime()
+    local now=GetTime()
     local sample=force~=false or now-lastSnapshot>=.05
     if sample then lastSnapshot=now end
     for _,unit in ipairs(units) do
-        local f=M.bars[unit]
-        local enabled=d.enabled and (unit=="target" and d.target or unit=="targettarget" and d.targettarget)
-        if sample then snapshots[unit]=enabled and Read(unit) or nil end
+        local f=M.bars[unit];local d=ns.GetCastbarSettings(unit)
+        local enabled=d.enabled
+        if sample then
+            local previous=snapshots[unit]
+            local current=enabled and Read(unit) or nil
+            if previous and current and current.unitGUID and previous.unitGUID==current.unitGUID and previous.name==current.name and previous.spellID==current.spellID and ((current.castGUID and previous.castGUID==current.castGUID) or previous.startTime==current.startTime) then L.Retime(previous,current,now) end
+            snapshots[unit]=current
+        end
         local c=enabled and snapshots[unit] or nil
+        local demoResult
         if preview and enabled then
-            local channel=unit=="targettarget"
-            c={name=channel and (ru and "Поток энергии" or "Energy channel") or (ru and "Огненный шар" or "Fireball"),icon=channel and 136048 or 135812,
-                startTime=now-(now%3),endTime=now-(now%3)+3,channel=channel,blocked=channel,interruptKnown=true}
+            local mode=ns.Castbar.previewMode or "sequence"
+            c,demoResult=L.PreviewCast(mode,now,previewStart,unit,ru)
         end
         if unit=="target" and QuartzTarget() and not preview then c=nil end
-        if c and now<=c.endTime then
-            local progress,remaining=L.Progress(c.startTime,c.endTime,now,c.channel)
+        if c and (preview or now<=c.endTime) then
+            local progress=L.DisplayProgress(c,now,d.reducedMotion)
+            local delay,alpha=L.DelayLabel(c,now,ru);f.delay:SetText(delay);f.delay:SetAlpha(alpha)
+            f:SetAlpha(1);f.bar:SetStatusBarColor(1,1,1)
             f.bar:GetStatusBarTexture():SetAtlas(c.channel and "ui-castingbar-filling-channel" or "ui-castingbar-filling-standard",false)
             f.bar:SetValue(progress);f.text:SetText(Label(unit).." · "..c.name);f.timer:SetText(L.TimerText(c.startTime,c.endTime,now,ru));f.icon:SetTexture(c.icon)
             -- No shield is not a promise of interruptibility: unknown stays neutral.
@@ -112,13 +123,19 @@ function M.Refresh(force)
             f.shieldIcon:SetTexture(c.icon);f.shieldIcon:SetShown(protected)
             f.icon:SetShown(d.icon and not protected)
             f.iconFrame:SetShown(d.icon and not protected)
+            if demoResult then
+                f.bar:GetStatusBarTexture():SetAtlas(demoResult.success and "ui-castingbar-full-standard" or "ui-castingbar-interrupted",false)
+                if demoResult.success then f.bar:SetValue(1) else f.bar:SetValue(2/3) end
+                f.timer:SetText(demoResult.success and "" or (ru and "Прервано" or "Interrupted"))
+                f.delay:SetText("");f:SetAlpha(d.reducedMotion and 1 or demoResult.remaining)
+            end
             f:Show()
         else f.protected=false;f:Hide() end
         if unit=="target" then Native(f:IsShown() and not preview) end
     end
 end
 function M.Preview(on)
-    preview=on and true or false
+    preview=on and true or false;previewStart=GetTime()
     for _,f in pairs(M.bars) do f:EnableMouse(preview) end
     M.Refresh()
 end
@@ -135,8 +152,9 @@ driver:SetScript("OnEvent",function(_,event,name)
             p.x=type(p.x)=="number" and p.x or 0;p.y=type(p.y)=="number" and p.y or (i==1 and -65 or -115)
             AndivalUIDB.unitcastbars[unit]=p;M.bars[unit]=Create(unit)
         end
-        ready=true;M.Layout()
+        ns.InitCastbarSettings();ready=true;M.Layout()
     end
+    if event=="PLAYER_TARGET_CHANGED" or event=="UNIT_TARGET" then snapshots={} end
     M.Refresh()
 end)
 -- targettarget often has no dedicated cast events. Re-read unit identity and casts;

@@ -39,7 +39,7 @@ Future modules register independently through `ns.RegisterModule` and use their 
 
 - Runtime files load in a mocked Lua environment; tests cover casts, channels, stale end events, interruption, visible/hidden/transparent ESI, preview exclusion, fallback and restricted timing.
 - Restricted cast data is not calculated or guessed: the addon yields to Blizzard's native bar.
-- No live-client visual or combat testing has yet been completed. This is **0.5.5, a revised test build**, not a claim of raid-ready compatibility.
+- No live-client visual or combat testing has yet been completed. This is **0.6.0, a revised test build**, not a claim of raid-ready compatibility.
 - Actual Blizzard atlas rendering, secure-value behavior, ESI fade timing, and coexistence with other castbar owners need in-game testing.
 - The module does not implement Quartz's mirror timers, GCD, swing timer or focus/pet features.
 
@@ -105,3 +105,13 @@ Protected spells use a 16 px icon inset into the native 29 by 33 px shield. The 
 Protected spells inset their artwork into the inner shield silhouette using an original antialiased mask, leaving the native Blizzard metal rim visible. This is a deliberate refinement of Blizzard's square-icon-on-shield composition, not an exact copy of its template. The ordinary square icon is hidden for protected casts; the shield is still shown only for confirmed non-interruptible casts.
 
 All active player, target and target-of-target timers now show elapsed / total duration, including channels. Russian clients use decimal commas. Channel fill still drains while elapsed time increases. Restricted timing still falls back safely; no numbers are fabricated. Simulator previews use deterministic sample data, not live combat.
+
+## 0.6.0 independent profiles and state testing
+
+Player, target and target-of-target have independent width, height, scale, icon, reduced-motion and enabled settings. Existing target positions and inherited appearances migrate once. Copy appearance explicitly between profiles without moving or enabling the destination. Reset appearance also preserves position and enabled state. Network latency remains a player-only setting, not a claimed target ping measurement.
+
+An authoritative cast timing change now produces a transient signed correction (for example +0.3 seconds); the fill eases to its corrected position over 0.18 seconds without altering the actual elapsed/total timer. Channel shortening displays a negative correction. This is spell pushback/timing correction, not an invented network latency number. Reduced motion applies the correction immediately. Unit changes do not inherit another target's correction; unknown identity is not guessed.
+
+Settings offer looping preview and individual cast, channel, delay, success, interruption, protected-spell and ESI-suppression demonstrations. ESI simulation hides only our sample bars and never changes ESI settings or globals. The shield preview applies to target/target-of-target. Preview is disabled in combat. Existing real player success/interruption effects are retained; target outcome animations here are preview-only, not inferred from disappearance of an enemy cast.
+
+Channels retain reverse fill and elapsed / total timing. Tick marks are deliberately absent: no reliable per-spell tick schedule has been verified for this client. School colors remain deferred because a build-matched data extraction is not yet available. No live-game combat validation is claimed.

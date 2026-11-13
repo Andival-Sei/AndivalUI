@@ -9,7 +9,7 @@ local defaults = { width = 280, height = 16, scale = 1, x = 0, y = -170, latency
 local cast, outcome, preview, installed, driver, ui
 local nativeOwned = false
 local warnedQuartz = false
-M.version = "0.5.3"
+M.version = "0.6.0"
 local function Say(s) print("|cffe1bd78Andival UI:|r " .. s) end
 M.Say = Say
 local function ESIVisible() return ns.Integrations.ESI.IsVisible() end
@@ -81,6 +81,9 @@ local function CreateUI()
     local timer = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     timer:SetPoint("BOTTOMRIGHT", bar, "TOPRIGHT", 0, 4); timer:SetJustifyH("RIGHT"); timer:SetWidth(80); timer:SetWordWrap(false); timer:SetShadowColor(0,0,0,1); timer:SetShadowOffset(1,-1)
     timer:SetTextColor(0.94, 0.87, 0.71)
+    local delay=f:CreateFontString(nil,"OVERLAY","GameFontHighlightSmall")
+    delay:SetPoint("TOPRIGHT",bar,"BOTTOMRIGHT",0,-3);delay:SetTextColor(1,.62,.32)
+    f.delay=delay
     local icon = f:CreateTexture(nil, "ARTWORK"); icon:SetPoint("RIGHT", bar, "LEFT", -7, 3); icon:SetTexCoord(.08,.92,.08,.92)
     local iconFrame = ns.CreateIconFrame(f,icon,22)
     f.iconFrame=iconFrame
@@ -130,9 +133,10 @@ local function SetFillAtlas(atlas)
 end
 local function Paint(c, now)
     ui.finishGlow:Hide()
-    local progress, remaining = L.Progress(c.startTime, c.endTime, now, c.channel)
+    local progress = L.DisplayProgress(c,now,AndivalUIDB.castbar.reducedMotion)
     SetFillAtlas(c.channel and "ui-castingbar-filling-channel" or "ui-castingbar-filling-standard")
     ui.bar:SetStatusBarColor(1,1,1); ui.bar:SetValue(progress)
+    local delay,alpha=L.DelayLabel(c,now,ru);ui.delay:SetText(delay);ui.delay:SetAlpha(alpha)
     ui.name:SetText(c.name); ui.icon:SetTexture(c.icon); ui.timer:SetText(L.TimerText(c.startTime,c.endTime,now,ru))
     local moving = not AndivalUIDB.castbar.reducedMotion
     ui.flow:SetShown(moving)
@@ -151,7 +155,7 @@ end
 local function PaintOutcome(success, remaining)
     local reduced = AndivalUIDB.castbar.reducedMotion
     SetFillAtlas(success and "ui-castingbar-full-standard" or "ui-castingbar-interrupted")
-    ui.spark:Hide(); ui.latency:Hide(); ui.flow:Hide()
+    ui.spark:Hide(); ui.latency:Hide(); ui.flow:Hide();ui.delay:SetText("")
     ui.timer:SetText(success and "" or (ru and "Прервано" or "Interrupted"))
     if success then ui.bar:SetValue(1) end
     local t = L.Clamp(remaining,0,1)
@@ -175,6 +179,13 @@ local function Refresh(deferClaim)
     end
     local now = GetTime()
     if preview then
+        if M.previewMode and M.previewMode~="sequence" then
+            local c,result=L.PreviewCast(M.previewMode,now,preview,"player",ru)
+            if not c then ui:Hide();return end
+            Paint(c,now);ui:SetAlpha(1)
+            if result then if not result.success then ui.bar:SetValue(2/3) end;PaintOutcome(result.success,result.remaining) end
+            ui:Show();return
+        end
         local elapsed = (now-preview) % 7
         local second = elapsed >= 4
         local age = second and elapsed-4 or elapsed
@@ -230,6 +241,10 @@ function M.Preview(on)
     if ui then ui:EnableMouse(on); ui.previewLabel:SetShown(on) end
     outcome = nil; cast = ReadCast(); Refresh()
 end
+function M.SetPreviewMode(mode)
+    M.previewMode=mode
+    if preview then M.Preview(true) end
+end
 function M.Reset()
     for k,v in pairs(defaults) do AndivalUIDB.castbar[k] = v end
     M.Layout(); Refresh()
@@ -247,8 +262,8 @@ driver:SetScript("OnEvent",function(_,event,unit,guid)
         AndivalUIDB = type(AndivalUIDB)=="table" and AndivalUIDB or {schema=1}
         AndivalUIDB.castbar = type(AndivalUIDB.castbar)=="table" and AndivalUIDB.castbar or {}
         for k,v in pairs(defaults) do if type(AndivalUIDB.castbar[k])~=type(v) then AndivalUIDB.castbar[k]=v end end
-        AndivalUIDB.castbar.width=L.Clamp(AndivalUIDB.castbar.width,180,500); AndivalUIDB.castbar.height=L.Clamp(AndivalUIDB.castbar.height,10,32); AndivalUIDB.castbar.scale=L.Clamp(AndivalUIDB.castbar.scale,.6,1.6)
-        ui=CreateUI(); installed=true; M.Layout()
+        AndivalUIDB.castbar.width=L.Clamp(AndivalUIDB.castbar.width,140,500); AndivalUIDB.castbar.height=L.Clamp(AndivalUIDB.castbar.height,10,32); AndivalUIDB.castbar.scale=L.Clamp(AndivalUIDB.castbar.scale,.6,1.6)
+        ns.InitCastbarSettings(); ui=CreateUI(); installed=true; M.Layout()
         for _,e in ipairs(events) do driver:RegisterUnitEvent(e,"player") end
         if ns.CreateSettings then ns.CreateSettings() end
         return
@@ -272,6 +287,7 @@ driver:SetScript("OnEvent",function(_,event,unit,guid)
                 cast.guid = cast.guid or Safe(guid)
                 if (event=="UNIT_SPELLCAST_DELAYED" or event=="UNIT_SPELLCAST_CHANNEL_UPDATE") and previous and previous.channel==cast.channel and L.AcceptEnd(previous.guid,cast.guid) then
                     cast.esiClaimed = previous.esiClaimed
+                    L.Retime(previous,cast,GetTime())
                 end
             end
             Refresh(true); return

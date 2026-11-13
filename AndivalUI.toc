@@ -3,12 +3,13 @@
 ## Notes: Modular, native-style UI refinements. First module: Castbar with Enhanced Soft Interact support.
 ## Notes-ruRU: Модульные улучшения интерфейса. Первый модуль: полоса заклинаний с поддержкой Enhanced Soft Interact.
 ## Author: Andival
-## Version: 0.5.5
+## Version: 0.6.0
 ## SavedVariables: AndivalUIDB
 ## OptionalDeps: EnhancedSoftInteract, Quartz
 ## IconTexture: Interface\Icons\Spell_Holy_HolyBolt
 Core.lua
 Modules\CastbarLogic.lua
+Modules\CastbarMotion.lua
 Integrations\EnhancedSoftInteract.lua
 Modules\Castbar.lua
 Modules\UnitCastbars.lua

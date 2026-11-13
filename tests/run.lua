@@ -65,7 +65,7 @@ local function fire(e,...)
 end
 local function tick(t) time=t; for _,f in ipairs(frames) do if f.scripts.OnUpdate then f.scripts.OnUpdate(f,.02) end end end
 local function load(path) assert(loadfile(path))('AndivalUI',ns) end
-load('Core.lua'); load('Modules/CastbarLogic.lua'); load('Integrations/EnhancedSoftInteract.lua'); load('Modules/Castbar.lua');load('Modules/UnitCastbars.lua');load('Settings.lua')
+load('Core.lua'); load('Modules/CastbarLogic.lua');load('Modules/CastbarMotion.lua'); load('Integrations/EnhancedSoftInteract.lua'); load('Modules/Castbar.lua');load('Modules/UnitCastbars.lua');load('Settings.lua')
 fire('ADDON_LOADED','AndivalUI')
 local count=0
 local function ok(value,label) assert(value,label); count=count+1; print('PASS '..label) end
@@ -134,8 +134,8 @@ unitCasts.target=nil;unitChannels.targettarget={name='Beam',start=130000,finish=
 ok(AndivalUITargetTargetCastbar.bar.value==.75,'target-of-target channel drains')
 ok(AndivalUITargetTargetCastbar.bar:GetStatusBarTexture():GetAtlas()=='ui-castingbar-filling-channel','channel uses distinct native texture')
 unitChannels.targettarget=nil;fire('UNIT_TARGET','target');ok(not AndivalUITargetTargetCastbar:IsShown(),'target-of-target change clears stale bar')
-AndivalUIDB.castbar.target=false;unitCasts.target={name='Disabled',start=131000,finish=134000};ns.UnitCastbars.Refresh();ok(not AndivalUITargetCastbar:IsShown(),'target toggle respected')
-AndivalUIDB.castbar.target=true;ns.UnitCastbars.Preview(true);ok(AndivalUITargetCastbar:IsShown() and AndivalUITargetTargetCastbar:IsShown(),'unit previews display both bars');ns.UnitCastbars.Preview(false)
+AndivalUIDB.unitcastbars.target.enabled=false;unitCasts.target={name='Disabled',start=131000,finish=134000};ns.UnitCastbars.Refresh();ok(not AndivalUITargetCastbar:IsShown(),'target toggle respected')
+AndivalUIDB.unitcastbars.target.enabled=true;ns.UnitCastbars.Preview(true);ok(AndivalUITargetCastbar:IsShown() and AndivalUITargetTargetCastbar:IsShown(),'unit previews display both bars');ns.UnitCastbars.Preview(false)
 TargetFrameSpellBar=new(UIParent);TargetFrameSpellBar:SetAlpha(.8)
 ns.UnitCastbars.Refresh();ok(TargetFrameSpellBar:GetAlpha()==0,'owns native target alpha only while custom target shown')
 unitCasts.target.start=restricted;ns.UnitCastbars.Refresh();ok(TargetFrameSpellBar:GetAlpha()==.8,'restricted target fallback restores previous native alpha')
@@ -143,10 +143,10 @@ unitCasts.target.start=131000
 LibStub=function() return {GetAddon=function() return {GetModule=function(_,name) return {IsEnabled=function() return name=='Target' end} end} end} end
 ns.UnitCastbars.Refresh();ok(not AndivalUITargetCastbar:IsShown(),'Quartz Target owner is respected')
 LibStub=nil;ns.UnitCastbars.Refresh();ok(AndivalUITargetCastbar:IsShown(),'target resumes when competing owner disabled')
-AndivalUIDB.castbar.icon=true;ns.Castbar.Layout()
+AndivalUIDB.castbar.icon=true;AndivalUIDB.unitcastbars.target.icon=true;AndivalUIDB.unitcastbars.targettarget.icon=true;ns.Castbar.Layout()
 ok(AndivalUICastbarFrame.iconFrame:IsShown() and AndivalUITargetCastbar.iconFrame:IsShown() and AndivalUITargetTargetCastbar.iconFrame:IsShown(),'native icon frames follow enabled icons across all bars')
 ok(AndivalUITargetCastbar.shield.point[1]=='CENTER' and AndivalUITargetCastbar.shield.point[2]==AndivalUITargetCastbar.icon,'shield surrounds spell icon rather than separate badge')
-AndivalUIDB.castbar.icon=false;ns.Castbar.Layout()
+AndivalUIDB.castbar.icon=false;AndivalUIDB.unitcastbars.target.icon=false;AndivalUIDB.unitcastbars.targettarget.icon=false;ns.Castbar.Layout()
 ok(not AndivalUICastbarFrame.iconFrame:IsShown() and not AndivalUITargetCastbar.iconFrame:IsShown() and not AndivalUITargetTargetCastbar.iconFrame:IsShown(),'icon toggle hides all corresponding frames')
 ok(AndivalUITargetCastbar.shield.point[2]==AndivalUITargetCastbar.icon,'shield stays anchored around icon regardless of toggle')
 ok(AndivalUITargetCastbar.shield:GetAtlas()=='ui-castingbar-shield','uses modern native filled shield atlas')
@@ -163,4 +163,34 @@ ok(ns.CastbarLogic.TimerText(10,15,16,false)=='5.0 / 5.0','timer clamps after fi
 ns.Castbar.Preview(true);ns.UnitCastbars.Preview(true)
 ok(AndivalUICastbarFrame.timer.textValue:find(' / ',1,true)~=nil,'player preview uses elapsed total timer')
 ok(AndivalUITargetCastbar.timer.textValue==AndivalUITargetTargetCastbar.timer.textValue,'cast and channel elapsed timers share direction')
+local L=ns.CastbarLogic
+local before={startTime=10,endTime=15,channel=false}
+local after={startTime=10,endTime=15.3,channel=false}
+L.Retime(before,after,12)
+ok(math.abs(L.DisplayProgress(after,12,false)-.4)<.0001,'delay correction starts without visual jump')
+ok(math.abs(L.DisplayProgress(after,12.2,false)-L.Progress(10,15.3,12.2,false))<.0001,'delay smoothing converges to authoritative timing')
+ok(L.DelayLabel(after,12,true)=='+0,3','confirmed pushback label uses signed localized seconds')
+ok(L.DelayLabel(after,14,true)=='','delay indicator expires')
+ok(L.DisplayProgress(after,12,true)==L.Progress(10,15.3,12,false),'reduced motion shows exact correction immediately')
+local oldChannel={startTime=10,endTime=15,channel=true}
+local cutChannel={startTime=10,endTime=14.7,channel=true}
+L.Retime(oldChannel,cutChannel,12)
+ok(L.DelayLabel(cutChannel,12,false)=='-0.3','channel shortening is not mislabeled added latency')
+local target=ns.GetCastbarSettings('target');local player=ns.GetCastbarSettings('player')
+local oldWidth=target.width;player.width=350;ns.InitCastbarSettings()
+ok(target.width==oldWidth,'migration never reapplies inherited player width')
+target.enabled=false;target.x=31;target.y=-91
+ok(ns.CopyCastbarSettings('player','target'),'copy profile succeeds')
+ok(target.width==350 and target.enabled==false and target.x==31 and target.y==-91,'copy preserves destination position and enabled state')
+target.width=250;ok(player.width==350,'copied profile is independent')
+ns.ResetCastbarSettings('target');ok(target.x==31 and not target.enabled,'appearance reset preserves position and enable')
+for _,mode in ipairs({'cast','channel','success','interrupted','delayed','protected'}) do
+ ns.Castbar.SetPreviewMode(mode);ns.Castbar.Preview(true)
+ ok(AndivalUICastbarFrame:IsShown(),'preview state '..mode)
+end
+ns.Castbar.SetPreviewMode('esi');ok(not AndivalUICastbarFrame:IsShown(),'ESI demo suppresses only our test bar')
+ns.Castbar.Preview(false);ns.Castbar.SetPreviewMode('sequence')
+ns.Castbar.SetPreviewMode('interrupted');ns.Castbar.Preview(true);time=time+2.3;ns.Castbar.Refresh()
+ok(AndivalUICastbarFrame.bar.value==2/3,'explicit interruption preview freezes fill')
+ns.Castbar.Preview(false);ns.Castbar.SetPreviewMode('sequence')
 print(string.format('%d tests passed',count))

@@ -1,61 +1,157 @@
 local _, ns = ...
-local ru = ns.ru
-local M = ns.Castbar
+local ru, M = ns.ru, ns.Castbar
 local panel
 local function T(a,b) return ru and a or b end
+local units={"player","target","targettarget"}
+local names={player=T("Игрок","Player"),target=T("Цель","Target"),targettarget=T("Цель цели","Target of target")}
 function ns.CreateSettings()
     panel=CreateFrame("Frame","AndivalUISettings",UIParent,"BasicFrameTemplateWithInset")
-    panel:SetSize(390,430); panel:SetPoint("CENTER"); panel:SetFrameStrata("DIALOG")
-    panel.TitleText:SetText("Andival UI · Castbar")
-    panel:SetMovable(true); panel:EnableMouse(true); panel:RegisterForDrag("LeftButton")
-    panel:SetScript("OnDragStart",panel.StartMoving); panel:SetScript("OnDragStop",panel.StopMovingOrSizing)
-    local intro=panel:CreateFontString(nil,"OVERLAY","GameFontHighlightSmall")
-    intro:SetPoint("TOPLEFT",20,-38); intro:SetWidth(350); intro:SetJustifyH("LEFT")
-    intro:SetText(T("Первый модуль: заклинания. Взаимодействия остаются у Enhanced Soft Interact.","First module: spells. Enhanced Soft Interact keeps object interactions."))
-    local controls={}
+    panel:SetSize(580,570);panel:SetPoint("CENTER");panel:SetFrameStrata("DIALOG")
+    panel.TitleText:SetText("Andival UI · "..T("Полосы заклинаний","Castbars"))
+    panel:SetMovable(true);panel:EnableMouse(true);panel:RegisterForDrag("LeftButton")
+    panel:SetScript("OnDragStart",function(self) if not InCombatLockdown() then self:StartMoving() end end)
+    panel:SetScript("OnDragStop",panel.StopMovingOrSizing)
+    local selected,source,loading,previewOn,previewMode="player","target",false,true,"sequence"
+    local controls,tabs,modeButtons={},{},{}
+    panel.controls=controls;panel.modeButtons=modeButtons
+    local RefreshControls,RefreshCopy
+    local function CanEdit() if InCombatLockdown() then panel:Hide();return false end return true end
+    local function Apply()
+        M.Layout();M.Refresh()
+        if ns.UnitCastbars then ns.UnitCastbars.Layout();ns.UnitCastbars.Refresh() end
+    end
+    local function Label(text,x,y,width,template)
+        local t=panel:CreateFontString(nil,"OVERLAY",template or "GameFontHighlightSmall")
+        t:SetPoint("TOPLEFT",x,y);t:SetWidth(width);t:SetJustifyH("LEFT");t:SetText(text);return t
+    end
+    local function Button(text,x,y,w,click)
+        local b=CreateFrame("Button",nil,panel,"UIPanelButtonTemplate")
+        b:SetSize(w,26);b:SetPoint("TOPLEFT",x,y);b:SetText(text)
+        b:SetScript("OnClick",function() if CanEdit() then click() end end);return b
+    end
+    Label(T("Настройки независимы. Перетаскивай полосы в режиме теста.","Independent profiles. Drag bars while testing to position them."),20,-38,540)
+    for i,unit in ipairs(units) do
+        tabs[unit]=Button(names[unit],20+(i-1)*180,-64,174,function()
+            selected=unit;if source==selected then source=selected=="player" and "target" or "player" end
+            RefreshControls()
+        end)
+    end
+    Label(T("ВНЕШНИЙ ВИД","APPEARANCE"),25,-110,240,"GameFontNormalSmall")
+    Label(T("ТЕСТ СОСТОЯНИЙ","STATE PREVIEW"),310,-110,245,"GameFontNormalSmall")
     local function Check(key,label,y)
         local c=CreateFrame("CheckButton",nil,panel,"UICheckButtonTemplate")
-        c:SetPoint("TOPLEFT",18,y)
-        local caption=c:CreateFontString(nil,"OVERLAY","GameFontHighlight")
-        caption:SetPoint("LEFT",c,"RIGHT",2,0); caption:SetText(label)
-        c:SetScript("OnClick",function(self) AndivalUIDB.castbar[key]=self:GetChecked(); M.Layout(); M.Refresh() end)
-        controls[#controls+1]={control=c,key=key}
+        c:SetPoint("TOPLEFT",20,y)
+        local caption=c:CreateFontString(nil,"OVERLAY","GameFontHighlightSmall")
+        caption:SetPoint("LEFT",c,"RIGHT",2,0);caption:SetWidth(220);caption:SetJustifyH("LEFT");caption:SetText(label)
+        c:SetScript("OnClick",function(self)
+            if not CanEdit() then return end
+            ns.GetCastbarSettings(selected)[key]=self:GetChecked() and true or false;Apply()
+        end)
+        controls[key]={control=c,caption=caption};return c
     end
-    Check("enabled",T("Включить модуль","Enable module"),-70)
-    Check("icon",T("Иконка заклинания","Spell icon"),-100)
-    Check("latency",T("Зона сетевой задержки","Network latency zone"),-130)
-    Check("reducedMotion",T("Уменьшить анимацию","Reduced motion"),-160)
-    Check("target",T("Полоса цели","Target castbar"),-190)
-    Check("targettarget",T("Полоса цели цели","Target-of-target castbar"),-220)
+    Check("enabled",T("Включить полосу","Enable bar"),-132)
+    Check("icon",T("Иконка заклинания","Spell icon"),-162)
+    Check("reducedMotion",T("Уменьшить анимацию","Reduced motion"),-192)
+    Check("latency",T("Зона сетевой задержки","Network latency zone"),-222)
     local function Slider(key,label,min,max,step,y)
         local c=CreateFrame("Slider",nil,panel,"OptionsSliderTemplate")
-        c:SetPoint("TOPLEFT",32,y); c:SetSize(320,17); c:SetMinMaxValues(min,max); c:SetValueStep(step); c:SetObeyStepOnDrag(true)
-        c.Low:SetText(tostring(min)); c.High:SetText(tostring(max))
+        c:SetPoint("TOPLEFT",34,y);c:SetSize(230,17);c:SetMinMaxValues(min,max);c:SetValueStep(step);c:SetObeyStepOnDrag(true)
+        c.Low:SetText(tostring(min));c.High:SetText(tostring(max))
+        -- Some client/template variants retain additional default Low/High labels.
+        if c.GetRegions then
+            for _,region in ipairs({c:GetRegions()}) do
+                if region~=c.Text and region~=c.Low and region~=c.High and region.GetObjectType and region:GetObjectType()=="FontString" then region:Hide() end
+            end
+        end
         c:SetScript("OnValueChanged",function(self,value)
             value=math.floor(value/step+.5)*step
-            AndivalUIDB.castbar[key]=value; self.Text:SetText(label .. ": " .. string.format(step<1 and "%.2f" or "%d",value)); M.Layout()
+            self.Text:SetText(label..": "..string.format(step<1 and "%.2f" or "%d",value))
+            if loading or not CanEdit() then return end
+            ns.GetCastbarSettings(selected)[key]=value;Apply()
         end)
-        controls[#controls+1]={control=c,key=key,slider=true}
+        controls[key]={control=c,slider=true}
     end
-    Slider("width",T("Ширина","Width"),180,500,10,-277)
-    Slider("scale",T("Масштаб","Scale"),.6,1.6,.05,-327)
-    local reset=CreateFrame("Button",nil,panel,"UIPanelButtonTemplate")
-    reset:SetSize(130,24); reset:SetPoint("BOTTOMLEFT",20,18); reset:SetText(T("Сбросить модуль","Reset module"))
-    reset:SetScript("OnClick",function() M.Reset(); panel:GetScript("OnShow")() end)
-    local done=CreateFrame("Button",nil,panel,"UIPanelButtonTemplate")
-    done:SetSize(130,24); done:SetPoint("BOTTOMRIGHT",-20,18); done:SetText(T("Готово","Done")); done:SetScript("OnClick",function() panel:Hide() end)
-    panel:SetScript("OnShow",function()
-        for _,v in ipairs(controls) do if v.slider then v.control:SetValue(AndivalUIDB.castbar[v.key]) else v.control:SetChecked(AndivalUIDB.castbar[v.key]) end end
+    Slider("width",T("Ширина","Width"),140,500,1,-282)
+    Slider("height",T("Высота","Height"),10,32,1,-334)
+    Slider("scale",T("Масштаб","Scale"),.6,1.6,.05,-386)
+    local testToggle=CreateFrame("CheckButton",nil,panel,"UICheckButtonTemplate")
+    testToggle:SetPoint("TOPLEFT",304,-132)
+    local testCaption=testToggle:CreateFontString(nil,"OVERLAY","GameFontHighlightSmall")
+    testCaption:SetPoint("LEFT",testToggle,"RIGHT",2,0);testCaption:SetText(T("Показывать тест","Show preview"))
+    local status=Label("",310,-316,240)
+    local function StartMode(mode)
+        previewMode=mode;previewOn=true;testToggle:SetChecked(true)
+        if M.SetPreviewMode then M.SetPreviewMode(mode) end
         M.Preview(true)
+        for id,b in pairs(modeButtons) do b:SetEnabled(id~=mode) end
+        status:SetText(mode=="esi" and T("Тест скрывает нашу полосу, не меняя ESI. Это имитация передачи взаимодействия.","Simulates hiding our bar without changing ESI. No actual interaction is triggered.") or mode=="protected" and T("Щит показан на полосах цели и цели цели. Это демонстрационные данные.","The shield is shown on target and target-of-target bars. Uses sample data.") or T("Демонстрационные данные, не реальный каст. Тики не имитируются.","Sample data, not a live cast. Tick timing is not fabricated."))
+    end
+    testToggle:SetScript("OnClick",function(self)
+        if not CanEdit() then return end
+        previewOn=self:GetChecked() and true or false
+        M.Preview(previewOn)
+    end)
+    local modes={
+        {"sequence",T("Все по кругу","Cycle all")},{"cast",T("Обычный каст","Cast")},
+        {"channel",T("Ченнелинг","Channel")},{"delayed",T("Задержка","Delay")},
+        {"success",T("Завершение","Success")},{"interrupted",T("Прерывание","Interrupted")},
+        {"protected",T("Со щитом","Protected")},{"esi",T("Передача ESI","ESI handoff")},
+    }
+    for i,entry in ipairs(modes) do
+        local id=entry[1]
+        modeButtons[id]=Button(entry[2],310+((i-1)%2)*124,-176-math.floor((i-1)/2)*32,118,function() StartMode(id) end)
+    end
+    Label(T("Копируются только оформление и анимация. Положение и включение сохраняются.","Copies appearance and motion only. Position and enabled state stay unchanged."),310,-365,240)
+    local sourceButton=Button("",310,-412,242,function()
+        for i,unit in ipairs(units) do if unit==source then
+            repeat i=i%#units+1 until units[i]~=selected
+            source=units[i];break
+        end end
+        RefreshCopy()
+    end)
+    local copyButton=Button("",310,-443,242,function()
+        ns.CopyCastbarSettings(source,selected);Apply();RefreshControls()
+    end)
+    RefreshCopy=function()
+        sourceButton:SetText(T("Источник: ","From: ")..names[source])
+        copyButton:SetText(T("Копировать → ","Copy to: ")..names[selected])
+    end
+    Button(T("Сбросить вид","Reset appearance"),25,-443,240,function()
+        ns.ResetCastbarSettings(selected);Apply();RefreshControls()
+    end)
+    Label(T("ESI управляет взаимодействиями. Каждая полоса включается независимо.","ESI owns interactions. Each castbar is enabled independently."),25,-490,530)
+    Button(T("Готово","Done"),420,-525,132,function() panel:Hide() end)
+    RefreshControls=function()
+        loading=true;panel.selectedUnit=selected
+        for unit,b in pairs(tabs) do b:SetEnabled(unit~=selected) end
+        local d=ns.GetCastbarSettings(selected)
+        for key,v in pairs(controls) do
+            if v.slider then v.control:SetValue(d[key]) else v.control:SetChecked(d[key] and true or false) end
+        end
+        controls.enabled.caption:SetText(T("Включить полосу","Enable bar"))
+        controls.latency.control:SetEnabled(selected=="player")
+        controls.latency.caption:SetTextColor(selected=="player" and 1 or .45,selected=="player" and 1 or .45,selected=="player" and 1 or .45)
+        loading=false;RefreshCopy()
+    end
+    panel.SelectUnit=function(unit)
+        if not CanEdit() or not names[unit] then return end
+        selected=unit;if source==selected then source=selected=="player" and "target" or "player" end;RefreshControls()
+    end
+    panel.SetTestMode=function(mode) if CanEdit() and modeButtons[mode] then StartMode(mode) end end
+    panel.RefreshControls=RefreshControls
+    panel:SetScript("OnShow",function()
+        if not CanEdit() then return end
+        ns.InitCastbarSettings();RefreshControls();StartMode(previewMode)
     end)
     panel:SetScript("OnHide",function() M.Preview(false) end)
-    panel:Hide()
-    table.insert(UISpecialFrames,"AndivalUISettings")
+    panel:RegisterEvent("PLAYER_REGEN_DISABLED")
+    panel:SetScript("OnEvent",function() panel:Hide() end)
+    panel:Hide();table.insert(UISpecialFrames,"AndivalUISettings")
 end
 SLASH_ANDIVALUI1="/aui"
 SLASH_ANDIVALUI2="/acast"
 SlashCmdList.ANDIVALUI=function(message)
-    if message=="status" then M.Status(); return end
-    if InCombatLockdown() then M.Say(T("Открой настройки вне боя.","Open settings out of combat.")); return end
+    if message=="status" then M.Status();return end
+    if InCombatLockdown() then M.Say(T("Открой настройки вне боя.","Open settings out of combat."));return end
     if panel then panel:SetShown(not panel:IsShown()) end
 end

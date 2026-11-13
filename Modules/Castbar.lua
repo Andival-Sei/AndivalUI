@@ -7,9 +7,9 @@ ns.ru = ru
 local function Safe(v) if issecretvalue and issecretvalue(v) then return nil end return v end
 local defaults = { width = 280, height = 16, scale = 1, x = 0, y = -170, latency = true, icon = false, reducedMotion = false, enabled = true, target = true, targettarget = true }
 local cast, outcome, preview, installed, driver, ui
-local nativeOwned = false
+local nativeOwners = {}
 local warnedQuartz = false
-M.version = "0.7.0"
+M.version = "0.7.1"
 local function Say(s) print("|cffe1bd78Andival UI:|r " .. s) end
 M.Say = Say
 local function ESIVisible() return ns.Integrations.ESI.IsVisible() end
@@ -22,15 +22,27 @@ local function QuartzActive()
 end
 -- We change alpha only, never unregister native events or overwrite scripts.
 local function Native(hidden)
-    local f = _G.PlayerCastingBarFrame
-    if not f then return end
     if hidden then
-        nativeOwned = true
-        if Safe(f:GetAlpha()) ~= 0 then f:SetAlpha(0) end
-    elseif nativeOwned then
-        nativeOwned = false
-        -- Finished native bars can freeze if restored after their fade. Only restore a live cast.
-        if not ESIVisible() and (Safe(f.casting) or Safe(f.channeling)) then f:SetAlpha(1) end
+        for _,name in ipairs({"PlayerCastingBarFrame","GamepadPlayerCastingBarFrame"}) do
+            local f=_G[name]
+            if f then
+                if not nativeOwners[f] then nativeOwners[f]={alpha=Safe(f:GetAlpha()) or 1} end
+                if Safe(f:GetAlpha())~=0 then f:SetAlpha(0) end
+            end
+        end
+    else
+        for f,owner in pairs(nativeOwners) do
+            local alpha=Safe(f:GetAlpha())
+            if ESIVisible() then
+                -- Preserve our original alpha while ESI temporarily owns visibility.
+            elseif alpha and alpha~=0 then
+                nativeOwners[f]=nil -- another owner controls it now
+            elseif Safe(f.casting) or Safe(f.channeling) or Safe(f:IsShown())==false then
+                f:SetAlpha(owner.alpha);nativeOwners[f]=nil
+            end
+            -- A finished native bar still fading must not be resurrected. Keep
+            -- checking until it hides or starts its next genuine cast.
+        end
     end
 end
 local function ReadCast()
@@ -121,7 +133,9 @@ function M.Layout()
     local d = AndivalUIDB.castbar
     ui:SetScale(d.scale); ui:SetSize(d.width, d.height + 25)
     ui:ClearAllPoints(); ui:SetPoint("CENTER", UIParent, "CENTER", d.x/d.scale, d.y/d.scale)
-    ui.bar:SetHeight(d.height); ui.name:SetWidth(d.width - 90)
+    local timerWidth=math.max(80,math.min(130,d.width*.34))
+    ui.bar:SetHeight(d.height);ui.timer:SetWidth(timerWidth);ui.name:SetWidth(d.width-timerWidth-10)
+    ui.spark:SetHeight(d.height+6)
     ui.icon:SetSize(22, 22)
     ui.finishGlow:SetSize(36, 36)
     ui.icon:SetShown(d.icon); ui.iconFrame:SetShown(d.icon)
@@ -137,14 +151,18 @@ local function Paint(c, now)
     SetFillAtlas(c.channel and "ui-castingbar-filling-channel" or "ui-castingbar-filling-standard")
     ui.bar:SetStatusBarColor(1,1,1); ui.bar:SetValue(progress)
     local delay,alpha=L.DelayLabel(c,now,ru);ui.delay:SetText(delay);ui.delay:SetAlpha(alpha)
-    ui.name:SetText(c.name); ui.icon:SetTexture(c.icon); ui.timer:SetText(L.TimerText(c.startTime,c.endTime,now,ru))
+    if ui.displayName~=c.name then ui.name:SetText(c.name);ui.displayName=c.name end
+    local icon=Safe(c.icon)
+    if not icon or ui.displayIcon~=icon then ui.icon:SetTexture(c.icon);ui.displayIcon=icon end
+    local timer=L.TimerText(c.startTime,c.endTime,now,ru)
+    if ui.displayTimer~=timer then ui.timer:SetText(timer);ui.displayTimer=timer end
     local moving = not AndivalUIDB.castbar.reducedMotion
     ui.flow:SetShown(moving)
     if moving then
         local phase = ((now-c.startTime)*.45) % 1
         ui.flow:SetSize(58,AndivalUIDB.castbar.height*2.5)
         ui.flow:ClearAllPoints(); ui.flow:SetPoint("CENTER",ui.bar,"LEFT",AndivalUIDB.castbar.width*progress*phase,0)
-        ui.flow:SetAlpha(.12 + .035*math.sin((now-c.startTime)*3))
+        ui.flow:SetAlpha((.12 + .035*math.sin((now-c.startTime)*3))*math.sin(math.pi*phase)^2)
     end
     ui.spark:ClearAllPoints(); ui.spark:SetPoint("CENTER", ui.bar, "LEFT", AndivalUIDB.castbar.width * progress, 0)
     ui.spark:SetShown(not AndivalUIDB.castbar.reducedMotion)
@@ -156,7 +174,7 @@ local function PaintOutcome(success, remaining)
     local reduced = AndivalUIDB.castbar.reducedMotion
     SetFillAtlas(success and "ui-castingbar-full-standard" or "ui-castingbar-interrupted")
     ui.spark:Hide(); ui.latency:Hide(); ui.flow:Hide();ui.delay:SetText("")
-    ui.timer:SetText(success and "" or (ru and "Прервано" or "Interrupted"))
+    ui.timer:SetText(success and "" or (ru and "Прервано" or "Interrupted"));ui.displayTimer=nil
     if success then ui.bar:SetValue(1) end
     local t = L.Clamp(remaining,0,1)
     ui.finishGlow:SetShown(success and not reduced)
@@ -175,23 +193,36 @@ end
 local function Refresh(deferClaim)
     if not installed then return end
     if not AndivalUIDB.castbar.enabled or QuartzActive() then
-        if not preview then ui:Hide(); Native(false); return end
+        if not preview then
+            local now=GetTime()
+            if cast and now>cast.endTime+.3 then cast=nil end
+            if outcome and now>=outcome.untilTime then outcome=nil end
+            ui:Hide(); Native(false); return
+        end
     end
     local now = GetTime()
     if preview then
+        Native(false)
         local c,result=L.PreviewCast(M.previewMode or "sequence",now,preview,"player",ru)
         if not c then ui:Hide();return end
         Paint(c,now);ui:SetAlpha(1)
         if result then if not result.success then ui.bar:SetValue(2/3) end;PaintOutcome(result.success,result.remaining) end
         ui:Show();return
     end
-    if cast and (now > cast.endTime + .3 or (cast.stopAt and now > cast.stopAt)) then cast = nil end
+    if cast and cast.stopAt and now>cast.stopAt then
+        local previous=cast;cast=nil
+        if previous.channel and not previous.esiClaimed and not ESIVisible() then
+            local success=previous.stopRequestedAt>=previous.endTime-.1
+            local duration=success and .5 or .55
+            outcome={untilTime=now+duration,duration=duration,success=success}
+        end
+    elseif cast and now>cast.endTime+.3 then cast=nil end
     local yield = L.ShouldYield(ESIVisible(), cast)
     if cast then
         cast.yielded = yield
         if not deferClaim then cast.esiClaimed = cast.esiClaimed or yield end
         if yield then ui:Hide(); Native(false); return end
-        outcome = nil; Paint(cast,now); ui:SetAlpha(1); ui:Show(); Native(true)
+        outcome = nil; Paint(cast,cast.stopRequestedAt or now); ui:SetAlpha(1); ui:Show(); Native(true)
     elseif outcome and now < outcome.untilTime then
         local t = (outcome.untilTime-now)/outcome.duration
         PaintOutcome(outcome.success,t); ui:Show(); Native(true)
@@ -200,17 +231,23 @@ local function Refresh(deferClaim)
     end
 end
 local function EndCast(event, guid)
-    if not cast or not L.AcceptEnd(cast.guid,Safe(guid)) then return end
+    if not cast then return end
+    local eventGUID=Safe(guid)
+    if not cast.guid or not eventGUID then
+        -- An unidentified terminal event must not kill a still-live spell.
+        if ReadCast() then return end
+    elseif not L.AcceptEnd(cast.guid,eventGUID) then return end
     if cast.channel and event == "UNIT_SPELLCAST_SUCCEEDED" then return end
-    if event == "UNIT_SPELLCAST_STOP" and not cast.channel then
-        cast.stopAt = GetTime() + .08 -- allow result events arriving after STOP
+    if (event=="UNIT_SPELLCAST_STOP" and not cast.channel) or (event=="UNIT_SPELLCAST_CHANNEL_STOP" and cast.channel) then
+        cast.stopAt=GetTime()+.08 -- reconcile a following explicit result before choosing an outcome
+        cast.stopRequestedAt=GetTime()
         return
     end
     local previous = cast
     cast = nil
     if previous.esiClaimed or ESIVisible() then outcome = nil; Refresh(); return end
-    local failure = event == "UNIT_SPELLCAST_INTERRUPTED" or event == "UNIT_SPELLCAST_FAILED"
-    local success = event == "UNIT_SPELLCAST_SUCCEEDED" or (previous.channel and GetTime() >= previous.endTime - .1)
+    local failure = event == "UNIT_SPELLCAST_INTERRUPTED" or event == "UNIT_SPELLCAST_FAILED" or event == "UNIT_SPELLCAST_FAILED_QUIET"
+    local success = not failure and (event == "UNIT_SPELLCAST_SUCCEEDED" or (previous.channel and GetTime() >= previous.endTime - .1))
     if failure or success then
         local duration = failure and .55 or .5
         outcome = {untilTime=GetTime()+duration,duration=duration,success=success}
@@ -221,7 +258,7 @@ function M.Preview(on)
     if ns.UnitCastbars then ns.UnitCastbars.Preview(on) end
     Native(false)
     preview = on and GetTime() or nil
-    if ui then ui:EnableMouse(on); ui.previewLabel:SetShown(on) end
+    if ui then if not on then ui:StopMovingOrSizing() end;ui:EnableMouse(on); ui.previewLabel:SetShown(on) end
     outcome = nil; cast = ReadCast(); Refresh()
 end
 function M.SetPreviewMode(mode)
@@ -279,12 +316,8 @@ driver:SetScript("OnEvent",function(_,event,unit,guid)
     Refresh()
 end)
 -- A short visibility check also handles ESI settings, HUD fades and late object association.
-local elapsed=0
-driver:SetScript("OnUpdate",function(_,dt)
-    elapsed=elapsed+dt
-    if elapsed < .016 then return end
-    elapsed=0
-    Refresh()
+driver:SetScript("OnUpdate",function()
+    if cast or outcome or preview or next(nativeOwners) then Refresh() end
 end)
 M.Test = { ReadCast=ReadCast, EndCast=EndCast, ESIVisible=ESIVisible, QuartzActive=QuartzActive }
 

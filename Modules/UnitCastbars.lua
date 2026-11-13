@@ -85,7 +85,8 @@ function M.Layout()
         local d=ns.GetCastbarSettings(unit)
         local f=M.bars[unit];local pos=AndivalUIDB.unitcastbars[unit]
         f:SetScale(d.scale);f:SetSize(d.width,d.height);f:ClearAllPoints();f:SetPoint("CENTER",UIParent,"CENTER",pos.x/d.scale,pos.y/d.scale)
-        f.text:SetWidth(d.width-85);f.icon:SetShown(d.icon and not f.protected);f.iconFrame:SetShown(d.icon and not f.protected)
+        local timerWidth=math.max(80,math.min(130,d.width*.34))
+        f.timer:SetWidth(timerWidth);f.timer:SetWordWrap(false);f.timer:SetJustifyH("RIGHT");f.text:SetWidth(d.width-timerWidth-10);f.icon:SetShown(d.icon and not f.protected);f.iconFrame:SetShown(d.icon and not f.protected)
         f.shield:ClearAllPoints();f.shield:SetPoint("CENTER",f.icon,"CENTER",0,-2.5)
     end
 end
@@ -114,19 +115,26 @@ function M.Refresh(force)
             local progress=L.DisplayProgress(c,now,d.reducedMotion)
             local delay,alpha=L.DelayLabel(c,now,ru);f.delay:SetText(delay);f.delay:SetAlpha(alpha)
             f:SetAlpha(1);f.bar:SetStatusBarColor(1,1,1)
-            f.bar:GetStatusBarTexture():SetAtlas(c.channel and "ui-castingbar-filling-channel" or "ui-castingbar-filling-standard",false)
-            f.bar:SetValue(progress);f.text:SetText(Label(unit).." · "..c.name);f.timer:SetText(L.TimerText(c.startTime,c.endTime,now,ru));f.icon:SetTexture(c.icon)
+            local atlas=c.channel and "ui-castingbar-filling-channel" or "ui-castingbar-filling-standard"
+            if f.bar:GetStatusBarTexture():GetAtlas()~=atlas then f.bar:GetStatusBarTexture():SetAtlas(atlas,false) end
+            f.bar:SetValue(progress)
+            local text=Label(unit).." · "..c.name
+            if f.displayText~=text then f.text:SetText(text);f.displayText=text end
+            local timer=L.TimerText(c.startTime,c.endTime,now,ru)
+            if f.displayTimer~=timer then f.timer:SetText(timer);f.displayTimer=timer end
+            local icon=Safe(c.icon)
+            if not icon or f.displayIcon~=icon then f.icon:SetTexture(c.icon);f.shieldIcon:SetTexture(c.icon);f.displayIcon=icon end
             -- No shield is not a promise of interruptibility: unknown stays neutral.
             local protected=c.interruptKnown and c.blocked==true
             f.protected=protected
             f.shield:SetShown(protected)
-            f.shieldIcon:SetTexture(c.icon);f.shieldIcon:SetShown(protected)
+            f.shieldIcon:SetShown(protected)
             f.icon:SetShown(d.icon and not protected)
             f.iconFrame:SetShown(d.icon and not protected)
             if demoResult then
                 f.bar:GetStatusBarTexture():SetAtlas(demoResult.success and "ui-castingbar-full-standard" or "ui-castingbar-interrupted",false)
                 if demoResult.success then f.bar:SetValue(1) else f.bar:SetValue(2/3) end
-                f.timer:SetText(demoResult.success and "" or (ru and "Прервано" or "Interrupted"))
+                f.timer:SetText(demoResult.success and "" or (ru and "Прервано" or "Interrupted"));f.displayTimer=nil
                 f.delay:SetText("");f:SetAlpha(d.reducedMotion and 1 or demoResult.remaining)
             end
             f:Show()
@@ -136,13 +144,14 @@ function M.Refresh(force)
 end
 function M.Preview(on)
     preview=on and true or false;previewStart=GetTime()
-    for _,f in pairs(M.bars) do f:EnableMouse(preview) end
+    for _,f in pairs(M.bars) do if not preview then f:StopMovingOrSizing() end;f:EnableMouse(preview) end
     M.Refresh()
 end
 M.Test={Read=Read}
 local driver=CreateFrame("Frame")
 driver:RegisterEvent("ADDON_LOADED");driver:RegisterEvent("PLAYER_TARGET_CHANGED");driver:RegisterEvent("UNIT_TARGET")
 driver:SetScript("OnEvent",function(_,event,name)
+    if event=="UNIT_TARGET" and Safe(name)~="target" then return end
     if event=="ADDON_LOADED" then
         if name~=ADDON then return end
         AndivalUIDB.unitcastbars=AndivalUIDB.unitcastbars or {}
@@ -159,5 +168,4 @@ driver:SetScript("OnEvent",function(_,event,name)
 end)
 -- targettarget often has no dedicated cast events. Re-read unit identity and casts;
 -- never carry old target state across a target switch or guess restricted timing.
-local elapsed=0
-driver:SetScript("OnUpdate",function(_,dt) elapsed=elapsed+dt;if elapsed<.016 then return end;elapsed=0;M.Refresh(false) end)
+driver:SetScript("OnUpdate",function() M.Refresh(false) end)

@@ -35,37 +35,57 @@ local profileUnits={player=true,target=true,targettarget=true}
 local appearanceKeys={"width","height","scale","icon","reducedMotion"}
 local appearanceDefaults={width=280,height=16,scale=1,icon=false,reducedMotion=false}
 local function NumberOr(value,fallback,lo,hi)
-    if type(value)~="number" or value~=value then return fallback end
-    return math.max(lo,math.min(hi,value))
+    if type(value)~="number" or value~=value or value==math.huge or value==-math.huge then return fallback end
+    if lo then return math.max(lo,math.min(hi,value)) end
+    return value
 end
-function ns.InitCastbarSettings()
-    AndivalUIDB=type(AndivalUIDB)=="table" and AndivalUIDB or {}
-    if ns.Profiles then ns.Profiles.Init() end
-    local db=AndivalUIDB
-    db.castbar=type(db.castbar)=="table" and db.castbar or {}
-    local player=db.castbar
-    for k,v in pairs(appearanceDefaults) do if player[k]==nil then player[k]=v end end
+local function BooleanOr(value,fallback)
+    if type(value)=="boolean" then return value end
+    return fallback
+end
+local function NormalizeCastbarProfile(profile,previousVersion)
+    profile.castbar=type(profile.castbar)=="table" and profile.castbar or {}
+    profile.unitcastbars=type(profile.unitcastbars)=="table" and profile.unitcastbars or {}
+    local player=profile.castbar
+    local legacy=(profile.castbarProfileVersion or previousVersion)~=1
     player.width=NumberOr(player.width,280,140,500)
     player.height=NumberOr(player.height,16,10,32)
     player.scale=NumberOr(player.scale,1,.6,1.6)
-    db.unitcastbars=type(db.unitcastbars)=="table" and db.unitcastbars or {}
+    player.x=NumberOr(player.x,0)
+    player.y=NumberOr(player.y,-170)
+    player.enabled=BooleanOr(player.enabled,true)
+    player.latency=BooleanOr(player.latency,true)
+    player.icon=BooleanOr(player.icon,false)
+    player.reducedMotion=BooleanOr(player.reducedMotion,false)
+    player.target=BooleanOr(player.target,true)
+    player.targettarget=BooleanOr(player.targettarget,true)
     for i,unit in ipairs({"target","targettarget"}) do
-        local d=type(db.unitcastbars[unit])=="table" and db.unitcastbars[unit] or {}
-        -- Missing fields alone are migrated; subsequent player changes are independent.
-        if d.width==nil then d.width=player.width*.85 end
-        if d.height==nil then d.height=14 end
-        if d.scale==nil then d.scale=player.scale end
-        if d.icon==nil then d.icon=player.icon end
-        if d.reducedMotion==nil then d.reducedMotion=player.reducedMotion end
-        if d.enabled==nil then d.enabled=player.enabled~=false and player[unit]~=false end
+        local d=type(profile.unitcastbars[unit])=="table" and profile.unitcastbars[unit] or {}
+        -- Inherit only missing legacy fields, never malformed fields or later edits.
+        if legacy then
+            if d.width==nil then d.width=player.width*.85 end
+            if d.scale==nil then d.scale=player.scale end
+            if d.icon==nil then d.icon=player.icon end
+            if d.reducedMotion==nil then d.reducedMotion=player.reducedMotion end
+            if d.enabled==nil then d.enabled=player.enabled and player[unit] end
+        end
         d.width=NumberOr(d.width,238,140,500)
         d.height=NumberOr(d.height,14,10,32)
         d.scale=NumberOr(d.scale,1,.6,1.6)
-        d.x=type(d.x)=="number" and d.x or 0
-        d.y=type(d.y)=="number" and d.y or (i==1 and -65 or -115)
-        db.unitcastbars[unit]=d
+        d.x=NumberOr(d.x,0)
+        d.y=NumberOr(d.y,i==1 and -65 or -115)
+        d.enabled=BooleanOr(d.enabled,true)
+        d.icon=BooleanOr(d.icon,false)
+        d.reducedMotion=BooleanOr(d.reducedMotion,false)
+        profile.unitcastbars[unit]=d
     end
-    db.castbarProfileVersion=1
+    profile.castbarProfileVersion=1
+end
+function ns.InitCastbarSettings()
+    AndivalUIDB=type(AndivalUIDB)=="table" and AndivalUIDB or {}
+    -- Profiles.Init normalizes the canonical profile before binding legacy aliases.
+    ns.Profiles.Init()
+    AndivalUIDB.castbarProfileVersion=1
 end
 function ns.GetCastbarSettings(unit)
     assert(profileUnits[unit],"Unknown castbar profile")
@@ -115,8 +135,7 @@ local function ValidateName(name)
 end
 local function Bind(name)
     local db=AndivalUIDB;local p=db.profiles[name]
-    p.castbar=type(p.castbar)=="table" and p.castbar or {}
-    p.unitcastbars=type(p.unitcastbars)=="table" and p.unitcastbars or {}
+    NormalizeCastbarProfile(p,db.castbarProfileVersion)
     db.castbar,db.unitcastbars=p.castbar,p.unitcastbars
     activeName=name
 end
@@ -131,7 +150,8 @@ function Profiles.Init()
     local key=CharacterKey()
     local chosen=key and db.characterProfiles[key] or "Default"
     if type(chosen)~="string" or type(db.profiles[chosen])~="table" then chosen="Default" end
-    if not activeName or activeCharacter~=key or db.castbar~=db.profiles[chosen].castbar then Bind(chosen) end
+    NormalizeCastbarProfile(db.profiles[chosen],db.castbarProfileVersion)
+    if not activeName or activeCharacter~=key or db.castbar~=db.profiles[chosen].castbar or db.unitcastbars~=db.profiles[chosen].unitcastbars then Bind(chosen) end
     activeCharacter=key
     if key then db.characterProfiles[key]=activeName end
     db.namedProfileVersion=1

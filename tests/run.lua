@@ -2,6 +2,7 @@ local ns = {}
 local frames = {}
 local Frame = {}
 local function noop() end
+function Frame:StopMovingOrSizing() self.stoppedMoving=true end
 function Frame:SetSize(w,h) self.width=w;self.height=h end
 local function new(parent)
   local f = {parent=parent,shown=true,alpha=1,scripts={},events={}}
@@ -61,9 +62,11 @@ function GetLocale() return os.getenv('TEST_LOCALE') or 'ruRU' end
 function GetNetStats() return 0,0,50,100 end
 function InCombatLockdown() return false end
 function issecretvalue(v) return v==restricted end
-function UnitCastingInfo(unit) local c=unit=='player' and current or unitCasts[unit];if c then return c.name,'',135920,c.start,c.finish,false,c.guid,c.blocked,1 end end
+local castReads=0
+function UnitCastingInfo(unit) castReads=castReads+1;local c=unit=='player' and current or unitCasts[unit];if c then return c.name,'',135920,c.start,c.finish,false,c.guid,c.blocked,1 end end
 function UnitChannelInfo(unit) local c=unit=='player' and channel or unitChannels[unit];if c then return c.name,'',135920,c.start,c.finish,false,c.blocked,1 end end
 local function fire(e,...)
+  PlayerCastingBarFrame.casting=current~=nil;PlayerCastingBarFrame.channeling=channel~=nil
   for _,f in ipairs(frames) do if f.events[e] and f.scripts.OnEvent then f.scripts.OnEvent(f,e,...) end end
 end
 local function tick(t) time=t; for _,f in ipairs(frames) do if f.scripts.OnUpdate then f.scripts.OnUpdate(f,.02) end end end
@@ -230,4 +233,40 @@ ok(not P.Create('По умолчанию'),'localized Default name is reserved')
 local sample=ns.CastbarLogic.PreviewCast('sequence',5,0,'player',false)
 ok(sample.channel,'Cycle all actually includes channel state')
 ok(ns.CastbarLogic.PreviewCast('sequence',25,0,'player',false)==nil,'Cycle all includes safe ESI handoff demonstration')
+AndivalUIDB.profiles.Broken={castbar={},unitcastbars={}}
+ok(P.Switch('Broken'),'incomplete stored profile can activate')
+ok(AndivalUIDB.castbar.x==0 and AndivalUIDB.castbar.y==-170 and AndivalUIDB.castbar.enabled and AndivalUIDB.castbar.latency,'full defaults normalized on every bind')
+AndivalUIDB.castbar.x=0/0;AndivalUIDB.castbar.scale=math.huge;AndivalUIDB.unitcastbars.target.y=-math.huge;AndivalUIDB.unitcastbars.target.enabled='false'
+ns.InitCastbarSettings();ns.Castbar.Layout()
+ok(AndivalUIDB.castbar.x==0 and AndivalUIDB.castbar.scale==1 and AndivalUIDB.unitcastbars.target.y==-65 and type(AndivalUIDB.unitcastbars.target.enabled)=='boolean','nonfinite coordinates and malformed booleans repaired')
+P.Switch('Default');P.Delete('Broken',true)
+ns.Castbar.Preview(false);current=nil;channel=nil;PlayerCastingBarFrame:Hide();ns.Castbar.Refresh();PlayerCastingBarFrame:Show()
+PlayerCastingBarFrame:SetAlpha(.4);GamepadPlayerCastingBarFrame=new(UIParent);GamepadPlayerCastingBarFrame:SetAlpha(.35);GamepadPlayerCastingBarFrame.casting=true
+current={name='Ownership',start=300000,finish=305000,guid='own'};time=300;fire('UNIT_SPELLCAST_START','player','own')
+ok(PlayerCastingBarFrame:GetAlpha()==0 and GamepadPlayerCastingBarFrame:GetAlpha()==0,'both native input layouts suppressed')
+ns.Castbar.Preview(true)
+ok(PlayerCastingBarFrame:GetAlpha()==.4 and GamepadPlayerCastingBarFrame:GetAlpha()==.35,'preview restores exact preexisting native alpha')
+ns.Castbar.Preview(false)
+fire('UNIT_SPELLCAST_INTERRUPTED','player',nil)
+ok(AndivalUICastbarFrame:IsShown() and AndivalUICastbarFrame.bar:GetStatusBarTexture():GetAtlas()=='ui-castingbar-filling-standard','unidentified terminal cannot end live spell')
+local oldProgress=AndivalUICastbarFrame.bar.value;time=300.004
+for _,frame in ipairs(frames) do if frame.scripts.OnUpdate then frame.scripts.OnUpdate(frame,.004) end end
+ok(AndivalUICastbarFrame.bar.value>oldProgress,'presentation updates on a 240Hz frame')
+current=nil;channel={name='Late interrupt',start=310000,finish=313000};time=310;fire('UNIT_SPELLCAST_CHANNEL_START','player','late');time=312.95;channel=nil;fire('UNIT_SPELLCAST_INTERRUPTED','player','late')
+ok(AndivalUICastbarFrame.bar:GetStatusBarTexture():GetAtlas()=='ui-castingbar-interrupted','near-end channel interruption never becomes success')
+channel={name='Stop order',start=320000,finish=323000};time=320;fire('UNIT_SPELLCAST_CHANNEL_START','player','stoporder');time=322.95;channel=nil;fire('UNIT_SPELLCAST_CHANNEL_STOP','player','stoporder');fire('UNIT_SPELLCAST_FAILED','player','stoporder')
+ok(AndivalUICastbarFrame.bar:GetStatusBarTexture():GetAtlas()=='ui-castingbar-interrupted','channel STOP before explicit failure is reconciled')
+channel={name='Natural',start=330000,finish=333000};time=330;fire('UNIT_SPELLCAST_CHANNEL_START','player','natural');time=333;channel=nil;fire('UNIT_SPELLCAST_CHANNEL_STOP','player','natural');tick(333.09)
+ok(AndivalUICastbarFrame.bar:GetStatusBarTexture():GetAtlas()=='ui-castingbar-full-standard','natural channel stop completes after reconciliation')
+current={name='Quiet',start=340000,finish=343000,guid='quiet'};time=340;fire('UNIT_SPELLCAST_START','player','quiet');current=nil;fire('UNIT_SPELLCAST_FAILED_QUIET','player','quiet')
+ok(AndivalUICastbarFrame.bar:GetStatusBarTexture():GetAtlas()=='ui-castingbar-interrupted','quiet failure is still a failure')
+ns.Castbar.Preview(true);AndivalUICastbarFrame.stoppedMoving=false;AndivalUITargetCastbar.stoppedMoving=false;ns.Castbar.Preview(false)
+ok(AndivalUICastbarFrame.stoppedMoving and AndivalUITargetCastbar.stoppedMoving,'closing preview always stops dragging')
+local readsBefore=castReads;fire('UNIT_TARGET','raid1')
+ok(castReads==readsBefore,'unrelated raid target events do not reread selected casts')
+current={name='Fade ownership',start=360000,finish=363000,guid='fade'};time=360;fire('UNIT_SPELLCAST_START','player','fade')
+current=nil;fire('UNIT_SPELLCAST_SUCCEEDED','player','fade');ns.Castbar.Preview(true)
+PlayerCastingBarFrame:Hide();tick(360.1)
+ok(PlayerCastingBarFrame:GetAlpha()==.4,'preview retries pending native restoration after fade hides')
+ns.Castbar.Preview(false)
 print(string.format('%d tests passed',count))

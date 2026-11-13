@@ -39,7 +39,7 @@ Future modules register independently through `ns.RegisterModule` and use their 
 
 - Runtime files load in a mocked Lua environment; tests cover casts, channels, stale end events, interruption, visible/hidden/transparent ESI, preview exclusion, fallback and restricted timing.
 - Restricted cast data is not calculated or guessed: the addon yields to Blizzard's native bar.
-- No live-client visual or combat testing has yet been completed. This is **0.7.0, a revised test build**, not a claim of raid-ready compatibility.
+- No live-client visual or combat testing has yet been completed. This is **0.7.1, a revised test build**, not a claim of raid-ready compatibility.
 - Actual Blizzard atlas rendering, secure-value behavior, ESI fade timing, and coexistence with other castbar owners need in-game testing.
 - The module does not implement Quartz's mirror timers, GCD, swing timer or focus/pet features.
 
@@ -123,3 +123,13 @@ Open `/aui` → **Profiles**. Create a named profile from Default, duplicate a s
 Existing settings migrate into **Default** once, including positions. Default remains editable but cannot be deleted or renamed. Copies are independent deep copies; existing names cannot be overwritten. Deleting a profile returns every character using it to Default. No changes are allowed in combat; switching waits until character identity is available. No import/export or automatic specialization switching is included.
 
 The interface automatically follows the WoW client: ruRU uses Russian; enUS/enGB and other locales use English fallback. There is no manual language selector. Settings, all test modes, profile operations/errors, status diagnostics and decimal formatting have been audited. Actual spell names still come from the client. The preview's Cycle all now includes all seven explicit states, including simulated ESI suppression; this is sample data only.
+
+## 0.7.1 runtime and saved-data audit
+
+- Explicit channel failure wins over near-end natural completion. Channel STOP briefly reconciles subsequent result events before selecting an outcome; early channel stop fades as interrupted. Quiet failures are handled. An unidentified terminal event first checks whether a spell remains live.
+- Player and gamepad native castbars preserve their prior alpha, including fractional/zero alpha. Restoration waits rather than resurrecting a finished native bar. ESI remains read-only and retains control while its interaction bar is visible.
+- Closing preview or entering combat stops an in-progress drag. Unrelated party/raid UNIT_TARGET events no longer reset selected-target smoothing.
+- Presentation updates every rendered frame; target acquisition remains bounded to 50 ms. Idle player work is skipped unless native restoration is pending. Unchanged text/icons/atlases are not repeatedly reassigned. Internal light fades at loop boundaries; spark height and timer space follow bar dimensions.
+- Every profile activation normalizes complete defaults, strict booleans and finite coordinates. Incomplete/invalid saved fields cannot pass nil/NaN/infinity to frame positioning; valid positions and settings remain unchanged.
+
+Tests include reordered events, near-end channel failure, original alpha ownership, missing identities, 240 Hz presentation steps, drag cancellation and incomplete saved profiles in both languages. These are mocked regression tests and actual UI-simulator checks, not live-client combat/performance measurements. Restricted cast data still falls back safely; tick schedules and spell-school colors remain intentionally unimplemented. Target completion effects are still preview-only, not guessed from disappearing casts. The brief result reconciliation cannot guarantee recovery of arbitrarily delayed or absent game events.
